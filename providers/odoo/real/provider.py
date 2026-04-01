@@ -165,12 +165,30 @@ class OdooRealProvider:
         if results:
             return self.mapper.to_order_audit_snapshot(results[0])
         return None
+
+    async def list_order_audits(self) -> List[OrderAuditSnapshot]:
+        results = await self.client.execute(
+            "sale.order",
+            "search_read",
+            [[]],
+            {"fields": ["id", "audit_status", "audit_notes", "audited_by", "audited_at"]},
+        )
+        return [self.mapper.to_order_audit_snapshot(r) for r in results]
     
     async def get_order_exceptions(self, order_id: str) -> List[OrderExceptionSnapshot]:
         results = await self.client.execute(
             "sale.exception",
             "search_read",
             [[("order_id", "=", int(order_id))]],
+            {"fields": ["id", "order_id", "exception_type", "severity", "description", "status", "create_date", "resolved_at"]},
+        )
+        return [self.mapper.to_order_exception_snapshot(r) for r in results]
+
+    async def list_order_exceptions(self) -> List[OrderExceptionSnapshot]:
+        results = await self.client.execute(
+            "sale.exception",
+            "search_read",
+            [[]],
             {"fields": ["id", "order_id", "exception_type", "severity", "description", "status", "create_date", "resolved_at"]},
         )
         return [self.mapper.to_order_exception_snapshot(r) for r in results]
@@ -185,3 +203,12 @@ class OdooRealProvider:
         if results:
             return self.mapper.to_fulfillment_snapshot(results[0])
         return None
+
+    async def list_fulfillments(self) -> List[FulfillmentSnapshot]:
+        results = await self.client.execute(
+            "stock.picking",
+            "search_read",
+            [[]],
+            {"fields": ["id", "origin", "state", "location_id", "scheduled_date", "date_done"]},
+        )
+        return [self.mapper.to_fulfillment_snapshot(r) for r in results]

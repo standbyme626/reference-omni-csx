@@ -123,7 +123,7 @@ class BusinessContext:
 ### 启动服务
 
 ```bash
-cd apps/domain-service
+cd apps/core/domain-service
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -133,3 +133,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `DATABASE_URL`: 数据库连接串
 - `OFFICIAL_SIM_BASE_URL`: official-sim-server 地址
 - `DEFAULT_PROVIDER_MODE`: 默认 provider 模式 (mock/real)
+- `ODOO_PROVIDER_MODE`: Odoo provider 模式 (`mock`/`real`)
+- `ODOO_BASE_URL`: Odoo 服务地址（`real` 模式使用）
+- `ODOO_DB`: Odoo 数据库名（`real` 模式使用）
+- `ODOO_USERNAME`: Odoo 用户名（`real` 模式使用）
+- `ODOO_API_KEY`: Odoo API Key（`real` 模式使用）

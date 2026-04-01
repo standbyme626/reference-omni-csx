@@ -65,3 +65,9 @@ data/ecommerce_dialogue_corpus/ECD.zip
 data/ecommerce_dialogue_corpus/E-commerce dataset/train.txt
 data/ecommerce_dialogue_corpus/E-commerce dataset/test.txt
 data/ecommerce_dialogue_corpus/E-commerce dataset/dev.txt
+
+# Local raw/generated datasets
+data/olist/
+data/olist_cn/
+data/odoo_import/
+output/

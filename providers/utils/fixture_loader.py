@@ -1,9 +1,21 @@
 import json
-import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-FIXTURE_BASE_PATH = Path(__file__).parent.parent.parent / "apps" / "official-sim-server" / "fixtures"
+
+def _resolve_fixture_base_path() -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates = [
+        repo_root / "apps" / "sim" / "official-sim-server" / "fixtures",
+        repo_root / "apps" / "official-sim-server" / "fixtures",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+FIXTURE_BASE_PATH = _resolve_fixture_base_path()
 
 
 class FixtureLoader:

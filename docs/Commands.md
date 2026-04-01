@@ -33,7 +33,7 @@ pip install -r requirements.txt
 ## 3. 启动 official-sim-server
 
 ```bash
-cd apps/official-sim-server
+cd apps/sim/official-sim-server
 uvicorn app.main:app --reload --port 8088
 ```
 

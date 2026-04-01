@@ -51,31 +51,61 @@ class OdooProvider:
         if self.mode == OdooProviderMode.MOCK:
             return self._mock_provider.get_order_audit(order_id)
         raise NotImplementedError("Real provider requires async call")
+
+    def list_order_audits(self) -> List[OrderAuditSnapshot]:
+        if self.mode == OdooProviderMode.MOCK:
+            return self._mock_provider.list_order_audits()
+        raise NotImplementedError("Real provider requires async call")
     
     async def get_order_audit_async(self, order_id: str) -> Optional[OrderAuditSnapshot]:
         if self.mode == OdooProviderMode.MOCK:
             return self._mock_provider.get_order_audit(order_id)
         return await self._real_provider.get_order_audit(order_id)
+
+    async def list_order_audits_async(self) -> List[OrderAuditSnapshot]:
+        if self.mode == OdooProviderMode.MOCK:
+            return self._mock_provider.list_order_audits()
+        return await self._real_provider.list_order_audits()
     
     def get_order_exceptions(self, order_id: str) -> List[OrderExceptionSnapshot]:
         if self.mode == OdooProviderMode.MOCK:
             return self._mock_provider.get_order_exceptions(order_id)
+        raise NotImplementedError("Real provider requires async call")
+
+    def list_order_exceptions(self) -> List[OrderExceptionSnapshot]:
+        if self.mode == OdooProviderMode.MOCK:
+            return self._mock_provider.list_order_exceptions()
         raise NotImplementedError("Real provider requires async call")
     
     async def get_order_exceptions_async(self, order_id: str) -> List[OrderExceptionSnapshot]:
         if self.mode == OdooProviderMode.MOCK:
             return self._mock_provider.get_order_exceptions(order_id)
         return await self._real_provider.get_order_exceptions(order_id)
+
+    async def list_order_exceptions_async(self) -> List[OrderExceptionSnapshot]:
+        if self.mode == OdooProviderMode.MOCK:
+            return self._mock_provider.list_order_exceptions()
+        return await self._real_provider.list_order_exceptions()
     
     def get_fulfillment(self, order_id: str) -> Optional[FulfillmentSnapshot]:
         if self.mode == OdooProviderMode.MOCK:
             return self._mock_provider.get_fulfillment(order_id)
+        raise NotImplementedError("Real provider requires async call")
+
+    def list_fulfillments(self) -> List[FulfillmentSnapshot]:
+        if self.mode == OdooProviderMode.MOCK:
+            return self._mock_provider.list_fulfillments()
         raise NotImplementedError("Real provider requires async call")
     
     async def get_fulfillment_async(self, order_id: str) -> Optional[FulfillmentSnapshot]:
         if self.mode == OdooProviderMode.MOCK:
             return self._mock_provider.get_fulfillment(order_id)
         return await self._real_provider.get_fulfillment(order_id)
+
+    async def list_fulfillments_async(self) -> List[FulfillmentSnapshot]:
+        if self.mode == OdooProviderMode.MOCK:
+            return self._mock_provider.list_fulfillments()
+        return await self._real_provider.list_fulfillments()
     
     def update_inventory(self, product_id: str, quantity: int) -> InventorySnapshot:
         if self.mode == OdooProviderMode.MOCK:
@@ -94,3 +124,35 @@ class OdooProvider:
                 order_id, exception_type, severity, description
             )
         raise NotImplementedError("Real provider requires async call")
+    
+    def healthcheck(self) -> Dict[str, Any]:
+        if self.mode == OdooProviderMode.MOCK:
+            return {
+                "status": "healthy",
+                "mode": "mock",
+                "message": "Mock provider is always healthy",
+            }
+        try:
+            return self._real_provider.healthcheck()
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "mode": "real",
+                "message": str(e),
+            }
+    
+    async def healthcheck_async(self) -> Dict[str, Any]:
+        if self.mode == OdooProviderMode.MOCK:
+            return {
+                "status": "healthy",
+                "mode": "mock",
+                "message": "Mock provider is always healthy",
+            }
+        try:
+            return await self._real_provider.healthcheck()
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "mode": "real",
+                "message": str(e),
+            }

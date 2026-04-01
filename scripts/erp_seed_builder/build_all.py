@@ -234,15 +234,15 @@ class InventoryBuilder:
         self.output_dir = output_dir
         self.products = products
         self.quants: List[Dict[str, Any]] = []
-    
+
     def generate_inventory(self) -> List[Dict[str, Any]]:
         warehouses = ["WH_MAIN", "WH_EAST", "WH_WEST", "WH_NORTH", "WH_SOUTH"]
         locations = ["LOC_A01", "LOC_A02", "LOC_B01", "LOC_B02", "LOC_C01"]
-        
+
         for product in self.products:
             num_warehouses = random.randint(1, 3)
             selected_warehouses = random.sample(warehouses, num_warehouses)
-            
+
             for wh in selected_warehouses:
                 quant = {
                     "id": f"quant_{product['id']}_{wh}",
@@ -253,21 +253,21 @@ class InventoryBuilder:
                 }
                 quant["available_quantity"] = quant["quantity"] - quant["reserved_quantity"]
                 self.quants.append(quant)
-        
+
         return self.quants
-    
+
     def to_csv(self, filename: str = "stock.quant.csv"):
         filepath = self.output_dir / filename
-        
+
         fieldnames = [
             "External ID", "Product", "Location", "Quantity",
             "Reserved Quantity", "Available Quantity",
         ]
-        
+
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            
+
             for q in self.quants:
                 writer.writerow({
                     "External ID": q["id"],
@@ -277,42 +277,317 @@ class InventoryBuilder:
                     "Reserved Quantity": q["reserved_quantity"],
                     "Available Quantity": q["available_quantity"],
                 })
-        
+
         return filepath
+
+
+class OrderAuditBuilder:
+    def __init__(self, output_dir: Path, orders: List[Dict]):
+        self.output_dir = output_dir
+        self.orders = orders
+        self.audits: List[Dict[str, Any]] = []
+
+    def generate_audits(self) -> List[Dict[str, Any]]:
+        auditors = ["auditor_001", "auditor_002", "auditor_003", "auditor_004"]
+        statuses = ["pending", "approved", "rejected"]
+
+        for order in self.orders:
+            status = random.choices(statuses, weights=[20, 70, 10])[0]
+            audited_at = None
+
+            if status != "pending":
+                audit_date = datetime.now() - timedelta(days=random.randint(0, 30))
+                audited_at = audit_date.strftime("%Y-%m-%d %H:%M:%S")
+
+            audit = {
+                "id": f"audit_{order['id']}",
+                "order_id": order["id"],
+                "audit_status": status,
+                "audit_notes": self._get_audit_notes(status),
+                "audited_by": random.choice(auditors) if status != "pending" else "",
+                "audited_at": audited_at,
+            }
+            self.audits.append(audit)
+
+        return self.audits
+
+    def _get_audit_notes(self, status: str) -> str:
+        notes_map = {
+            "pending": "等待财务审核",
+            "approved": "订单审核通过，可以发货",
+            "rejected": "订单审核拒绝，需要修改",
+        }
+        return notes_map.get(status, "")
+
+    def to_csv(self, filename: str = "order_audit.csv"):
+        filepath = self.output_dir / filename
+
+        fieldnames = [
+            "External ID", "Order", "Audit Status", "Audit Notes",
+            "Audited By", "Audited At",
+        ]
+
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for a in self.audits:
+                writer.writerow({
+                    "External ID": a["id"],
+                    "Order": a["order_id"],
+                    "Audit Status": a["audit_status"],
+                    "Audit Notes": a["audit_notes"],
+                    "Audited By": a["audited_by"],
+                    "Audited At": a["audited_at"] or "",
+                })
+
+        return filepath
+
+
+class OrderExceptionBuilder:
+    def __init__(self, output_dir: Path, orders: List[Dict]):
+        self.output_dir = output_dir
+        self.orders = orders
+        self.exceptions: List[Dict[str, Any]] = []
+
+    def generate_exceptions(self) -> List[Dict[str, Any]]:
+        exception_types = [
+            "inventory_shortage",
+            "address_issue",
+            "payment_delay",
+            "product_unavailable",
+            "price_mismatch",
+        ]
+        severity_map = {
+            "inventory_shortage": "medium",
+            "address_issue": "high",
+            "payment_delay": "low",
+            "product_unavailable": "high",
+            "price_mismatch": "medium",
+        }
+
+        for order in self.orders:
+            if random.random() < 0.15:
+                num_exceptions = random.randint(1, 3)
+                for j in range(num_exceptions):
+                    exc_type = random.choice(exception_types)
+                    exception = {
+                        "id": f"exc_{order['id']}_{j+1}",
+                        "order_id": order["id"],
+                        "exception_type": exc_type,
+                        "severity": severity_map[exc_type],
+                        "description": self._get_description(exc_type),
+                        "status": random.choice(["open", "resolved"]),
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "resolved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S") if random.random() > 0.5 else "",
+                    }
+                    self.exceptions.append(exception)
+
+        return self.exceptions
+
+    def _get_description(self, exc_type: str) -> str:
+        desc_map = {
+            "inventory_shortage": "库存不足，需要补货",
+            "address_issue": "收货地址不完整或无法送达",
+            "payment_delay": "支付超时，需要重新支付",
+            "product_unavailable": "商品已下架或缺货",
+            "price_mismatch": "价格存在差异，需要核实",
+        }
+        return desc_map.get(exc_type, "其他异常")
+
+    def to_csv(self, filename: str = "order_exception.csv"):
+        filepath = self.output_dir / filename
+
+        fieldnames = [
+            "External ID", "Order", "Exception Type", "Severity",
+            "Description", "Status", "Created At", "Resolved At",
+        ]
+
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for e in self.exceptions:
+                writer.writerow({
+                    "External ID": e["id"],
+                    "Order": e["order_id"],
+                    "Exception Type": e["exception_type"],
+                    "Severity": e["severity"],
+                    "Description": e["description"],
+                    "Status": e["status"],
+                    "Created At": e["created_at"],
+                    "Resolved At": e["resolved_at"] or "",
+                })
+
+        return filepath
+
+
+class FulfillmentBuilder:
+    def __init__(self, output_dir: Path, orders: List[Dict]):
+        self.output_dir = output_dir
+        self.orders = orders
+        self.pickings: List[Dict[str, Any]] = []
+        self.moves: List[Dict[str, Any]] = []
+
+    def generate_fulfillment(self) -> tuple:
+        warehouses = ["WH_MAIN", "WH_EAST", "WH_WEST"]
+        statuses = ["pending", "assigned", "picking", "done", "cancel"]
+
+        for order in self.orders:
+            if order["state"] in ["sale", "done"]:
+                status = random.choices(statuses, weights=[20, 20, 30, 25, 5])[0]
+                scheduled_date = (datetime.now() + timedelta(days=random.randint(1, 7))).strftime("%Y-%m-%d")
+                actual_date = None
+
+                if status == "done":
+                    actual_date = (datetime.now() + timedelta(days=random.randint(1, 5))).strftime("%Y-%m-%d")
+
+                picking = {
+                    "id": f"picking_{order['id']}",
+                    "order_id": order["id"],
+                    "status": status,
+                    "warehouse": random.choice(warehouses),
+                    "scheduled_date": scheduled_date,
+                    "actual_date": actual_date,
+                }
+                self.pickings.append(picking)
+
+                for j in range(random.randint(1, 3)):
+                    move = {
+                        "id": f"move_{order['id']}_{j+1}",
+                        "picking_id": picking["id"],
+                        "product_id": f"product_{random.randint(1, 100):04d}",
+                        "location_id": f"{picking['warehouse']}/LOC_{random.choice(['A', 'B', 'C'])}{random.randint(1, 9):02d}",
+                        "quantity": random.randint(1, 10),
+                        "state": "done" if status == "done" else "pending",
+                    }
+                    self.moves.append(move)
+
+        return self.pickings, self.moves
+
+    def to_csv(self, picking_filename: str = "stock.picking.csv", move_filename: str = "stock.move.csv"):
+        picking_filepath = self.output_dir / picking_filename
+        move_filepath = self.output_dir / move_filename
+
+        picking_fieldnames = [
+            "External ID", "Order", "Status", "Warehouse",
+            "Scheduled Date", "Actual Date",
+        ]
+
+        with open(picking_filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=picking_fieldnames)
+            writer.writeheader()
+
+            for p in self.pickings:
+                writer.writerow({
+                    "External ID": p["id"],
+                    "Order": p["order_id"],
+                    "Status": p["status"],
+                    "Warehouse": p["warehouse"],
+                    "Scheduled Date": p["scheduled_date"],
+                    "Actual Date": p["actual_date"] or "",
+                })
+
+        move_fieldnames = [
+            "External ID", "Picking", "Product", "Location",
+            "Quantity", "State",
+        ]
+
+        with open(move_filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=move_fieldnames)
+            writer.writeheader()
+
+            for m in self.moves:
+                writer.writerow({
+                    "External ID": m["id"],
+                    "Picking": m["picking_id"],
+                    "Product": m["product_id"],
+                    "Location": m["location_id"],
+                    "Quantity": m["quantity"],
+                    "State": m["state"],
+                })
+
+        return picking_filepath, move_filepath
 
 
 def build_all(output_dir: str = "output/odoo_seed"):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
+    generated_files = []
+
     print("Building products...")
     product_builder = ProductBuilder(output_path)
     products = product_builder.generate_products(100)
-    product_builder.to_csv()
-    
+    product_file = product_builder.to_csv()
+    generated_files.append(("product.template.csv", product_file))
+    print(f"  Created: {product_file.name}")
+
     print("Building partners...")
     partner_builder = PartnerBuilder(output_path)
     partners = partner_builder.generate_customers(500)
-    partner_builder.to_csv()
-    
+    partner_file = partner_builder.to_csv()
+    generated_files.append(("res.partner.csv", partner_file))
+    print(f"  Created: {partner_file.name}")
+
     print("Building orders...")
     order_builder = OrderBuilder(output_path, products, partners)
     orders = order_builder.generate_orders(1000)
-    order_builder.to_csv()
-    
+    order_file, line_file = order_builder.to_csv()
+    generated_files.append(("sale.order.csv", order_file))
+    generated_files.append(("sale.order.line.csv", line_file))
+    print(f"  Created: {order_file.name}, {line_file.name}")
+
     print("Building inventory...")
     inventory_builder = InventoryBuilder(output_path, products)
     inventory_builder.generate_inventory()
-    inventory_builder.to_csv()
-    
-    print(f"Done! Files written to {output_path}")
-    
+    inventory_file = inventory_builder.to_csv()
+    generated_files.append(("stock.quant.csv", inventory_file))
+    print(f"  Created: {inventory_file.name}")
+
+    print("Building order audits...")
+    audit_builder = OrderAuditBuilder(output_path, orders)
+    audit_builder.generate_audits()
+    audit_file = audit_builder.to_csv()
+    generated_files.append(("order_audit.csv", audit_file))
+    print(f"  Created: {audit_file.name}")
+
+    print("Building order exceptions...")
+    exception_builder = OrderExceptionBuilder(output_path, orders)
+    exception_builder.generate_exceptions()
+    exception_file = exception_builder.to_csv()
+    generated_files.append(("order_exception.csv", exception_file))
+    print(f"  Created: {exception_file.name}")
+
+    print("Building fulfillment...")
+    fulfillment_builder = FulfillmentBuilder(output_path, orders)
+    fulfillment_builder.generate_fulfillment()
+    picking_file, move_file = fulfillment_builder.to_csv()
+    generated_files.append(("stock.picking.csv", picking_file))
+    generated_files.append(("stock.move.csv", move_file))
+    print(f"  Created: {picking_file.name}, {move_file.name}")
+
+    print("\n" + "=" * 60)
+    print("SEED BUILDER COMPLETE")
+    print("=" * 60)
+    print(f"\nGenerated files:")
+    for filename, filepath in generated_files:
+        print(f"  - {filename}")
+    print(f"\nTotal: {len(generated_files)} files")
+    print(f"Location: {output_path.absolute()}")
+    print("=" * 60)
+
     return {
         "products": len(products),
         "partners": len(partners),
         "orders": len(orders),
         "order_lines": len(order_builder.order_lines),
         "quants": len(inventory_builder.quants),
+        "audits": len(audit_builder.audits),
+        "exceptions": len(exception_builder.exceptions),
+        "pickings": len(fulfillment_builder.pickings),
+        "moves": len(fulfillment_builder.moves),
+        "files": [f[0] for f in generated_files],
     }
 
 

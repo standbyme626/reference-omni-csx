@@ -11,32 +11,52 @@ Platform-Sim 是一个**多平台官方行为仿真层 + 客服中台统一层**
 ### 核心架构
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    完整客服中台系统（可正常开发）                    │
-│                                                                 │
-│  User Intent ──→ User Agent ──→ official-sim-server             │
-│     (用户输入)   (翻译成API调用)   (扮演官方平台)                   │
-│                          │              ↓                        │
-│                          │         Unified Layer                 │
-│                          │              ↓                        │
-│                          └────→ AI Orchestrator                  │
-│                                     ↓                           │
-│                                 前端/坐席工作台                    │
-└─────────────────────────────────────────────────────────────────┘
-              ↑ 全程不需要真实用户和真实官方API
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         完整客服中台系统                                   │
+│                                                                         │
+│   前端/坐席工作台                                                         │
+│        │                                                                │
+│        ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────────┐   │
+│   │              domain-service（唯一业务入口）                        │   │
+│   │  /api/orders  /api/shipments  /api/after-sales  /api/context    │   │
+│   │  /api/conversations  /api/analytics  /api/integration           │   │
+│   └─────────────────────────────────────────────────────────────────┘   │
+│        │                    │                    │                       │
+│        ▼                    ▼                    ▼                       │
+│   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                │
+│   │official-sim  │   │    odoo      │   │     ai       │                │
+│   │   -server    │   │  provider    │   │orchestrator  │                │
+│   │  (仿真层)    │   │  (ERP事实)   │   │ (建议/模拟)  │                │
+│   └──────────────┘   └──────────────┘   └──────────────┘                │
+│        │                    │                                            │
+│        ▼                    ▼                                            │
+│   六平台 fixtures      inventory / audit / exception / fulfillment      │
+│   (taobao/douyin/jd/xhs/kuaishou/wecom_kf)                              │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 两个独立职责
+### 服务职责边界
 
-1. **User Agent（AI Orchestrator 内部模块）**
-   - 输入：用户的自然语言（"我要退款"、"查一下订单"）
-   - 输出：**官方 API 格式的请求**（调用哪个平台、什么接口、什么参数）
-   - 职责：把用户意图翻译成官方 API 调用
+| 服务 | 职责 | 入口 |
+|-----|------|------|
+| **domain-service** | 唯一业务入口，聚合平台事实 + ERP 事实 | `/api/*` |
+| **official-sim-server** | 平台行为仿真，提供官方级 payload | `/official-sim/runs/*`, `/mock/{platform}/*` |
+| **odoo provider** | ERP 事实（库存/审核/异常/履约） | 通过 domain-service 聚合 |
+| **user-sim-service** | 用户行为仿真、建议回复、规则判断（原 ai-orchestrator） | `/conversation-studio/*` |
 
-2. **official-sim-server（独立服务）**
-   - 输入：来自 User Agent 或其他系统的**官方 API 调用**
-   - 输出：**官方级 API payload**（从 fixtures 加载）
-   - 职责：模拟官方平台返回真实格式的响应
+### 六平台能力矩阵
+
+| 平台 | 订单 | 物流 | 售后 | 会话 | 特殊说明 |
+|-----|:---:|:---:|:---:|:---:|---------|
+| taobao | ✅ | ✅ | ✅ | ✅ | 电商标准流程 |
+| douyin_shop | ✅ | ✅ | ✅ | ✅ | 电商标准流程 |
+| jd | ✅ | ✅ | ✅ | ❌ | 电商标准流程 |
+| xhs | ✅ | ✅ | ✅ | ❌ | 电商标准流程 |
+| kuaishou | ✅ | ✅ | ✅ | ❌ | 电商标准流程 |
+| wecom_kf | ❌ | ❌ | ❌ | ✅ | **conversation-first** |
+
+> **注意**: wecom_kf 采用 conversation-first 契约，不提供订单/物流/售后能力
 
 ---
 
@@ -45,37 +65,13 @@ Platform-Sim 是一个**多平台官方行为仿真层 + 客服中台统一层**
 ```
 platform-sim/
 ├── apps/
-│   ├── official-sim-server/     # 官方行为仿真服务
-│   │   ├── app/
-│   │   │   ├── api/routes/      # API 路由
-│   │   │   ├── core/            # 核心配置
-│   │   │   ├── domain/          # 领域逻辑
-│   │   │   ├── models/          # 数据模型
-│   │   │   ├── platforms/       # 平台 Profile
-│   │   │   └── repositories/    # 数据访问层
-│   │   ├── fixtures/            # 官方级 payload 数据
-│   │   │   ├── taobao/          # 淘宝
-│   │   │   ├── douyin_shop/     # 抖店
-│   │   │   ├── wecom_kf/        # 企微客服
-│   │   │   ├── jd/              # 京东
-│   │   │   ├── xhs/             # 小红书
-│   │   │   └── kuaishou/        # 快手
-│   │   └── tests/               # 测试用例
-│   │
-│   ├── ai-orchestrator/         # AI 编排服务
-│   │   ├── nodes/               # 节点模块
-│   │   │   ├── user_simulator.py    # 用户模拟器
-│   │   │   ├── conversation_studio.py # 会话工作室
-│   │   │   └── reply/           # 回复节点
-│   │   ├── services/            # LLM 服务
-│   │   └── prompts/             # Prompt 模板
-│   │
-│   ├── domain-service/          # 领域服务
-│   │   ├── models/unified.py    # 统一领域模型
-│   │   ├── adapters/            # 平台适配器
-│   │   └── services/            # 业务服务
-│   │
-│   └── conversation-studio-web/ # 会话工作室前端
+│   ├── core/
+│   │   └── domain-service/          # 中台主业务服务（统一业务入口）
+│   ├── sim/
+│   │   ├── official-sim-server/     # 官方行为仿真（官方 API/push/callback）
+│   │   └── user-sim-service/        # 用户行为仿真（原 ai-orchestrator）
+│   └── frontend/
+│       └── conversation-studio-web/ # 会话工作室前端（预留）
 │
 ├── providers/                   # 平台 Provider
 │   ├── base/provider.py         # 基础 Provider 接口
@@ -87,6 +83,9 @@ platform-sim/
 │   ├── kuaishou/                # 快手 Provider
 │   └── utils/fixture_loader.py  # Fixture 加载器
 │
+├── reference/
+│   └── omni-csx-v35/            # 归档参考代码（非主运行路径）
+│
 ├── data/
 │   └── extracted_user_queries/  # 用户查询模板数据
 │
@@ -95,6 +94,8 @@ platform-sim/
 ├── scripts/                     # 脚本工具
 └── platform_specs/              # 平台规格说明
 ```
+
+> 迁移说明：过渡期保留了旧路径软链（如 `apps/official-sim-server`、`apps/ai-orchestrator`、`apps/domain-service`），新代码请优先使用上面的 canonical 路径。
 
 ---
 
@@ -156,7 +157,7 @@ docker run -d --name official-sim-postgres \
   -p 5432:5432 postgres:15-alpine
 
 # 创建数据库表
-cd apps/official-sim-server
+cd apps/sim/official-sim-server
 python -c "from app.core.database import engine, Base; from app.models.models import *; Base.metadata.create_all(bind=engine)"
 
 # 启动服务
@@ -661,10 +662,17 @@ class OrchestratorState(BaseModel):
 
 ```bash
 # 启动会话工作室服务
-cd apps/ai-orchestrator
+cd apps/sim/user-sim-service
 python run_server.py
 
 # 访问 http://localhost:8001
+```
+
+可选环境变量：
+
+```bash
+export OFFICIAL_SIM_BASE_URL=http://localhost:8000
+export USER_SIM_PORT=8001
 ```
 
 **API 接口**：
@@ -743,10 +751,10 @@ GET /conversation-studio/runs/{run_id}/suggestions
 
 ```bash
 # 运行所有测试
-pytest apps/official-sim-server/tests/ -v
+pytest apps/sim/official-sim-server/tests/ -v
 
 # 运行特定平台测试
-pytest apps/official-sim-server/tests/test_taobao.py -v
+pytest apps/sim/official-sim-server/tests/test_taobao.py -v
 
 # 运行集成测试
 pytest tests/integration/ -v
@@ -773,7 +781,7 @@ integration                         9         9
 
 1. 创建平台 Profile：
 ```python
-# apps/official-sim-server/app/platforms/new_platform/profile.py
+# apps/sim/official-sim-server/app/platforms/new_platform/profile.py
 
 class NewPlatformOrderStatus(str, Enum):
     WAIT_PAY = "wait_pay"
@@ -788,7 +796,7 @@ ORDER_STATUS_TRANSITIONS = {
 
 2. 创建 Fixture 目录：
 ```bash
-mkdir -p apps/official-sim-server/fixtures/new_platform/{success,edge_case,error_case,users}
+mkdir -p apps/sim/official-sim-server/fixtures/new_platform/{success,edge_case,error_case,users}
 ```
 
 3. 创建 Provider：
@@ -804,7 +812,7 @@ class NewPlatformProvider(BaseProvider):
 
 4. 创建适配器：
 ```python
-# apps/domain-service/adapters/new_platform_adapter.py
+# apps/core/domain-service/adapters/new_platform_adapter.py
 
 class NewPlatformAdapter(PlatformAdapter):
     def to_unified_order(self, platform_order: Dict) -> UnifiedOrder:

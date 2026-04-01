@@ -76,6 +76,99 @@ class OdooMockProvider:
                 location="LOC_B02",
                 updated_at=datetime.now(),
             ),
+            "ORDER_001": InventorySnapshot(
+                product_id="ORDER_001",
+                sku_id="SKU_ORDER_001",
+                quantity=200,
+                reserved_quantity=20,
+                available_quantity=180,
+                warehouse="WH_MAIN",
+                location="LOC_C01",
+                updated_at=datetime.now(),
+            ),
+            "ORDER_002": InventorySnapshot(
+                product_id="ORDER_002",
+                sku_id="SKU_ORDER_002",
+                quantity=150,
+                reserved_quantity=15,
+                available_quantity=135,
+                warehouse="WH_MAIN",
+                location="LOC_D01",
+                updated_at=datetime.now(),
+            ),
+        }
+        
+        self._order_audits = {
+            "ORDER_001": OrderAuditSnapshot(
+                order_id="ORDER_001",
+                audit_status="approved",
+                audit_notes="订单审核通过，可以发货",
+                audited_by="auditor_001",
+                audited_at=datetime.now(),
+            ),
+            "ORDER_002": OrderAuditSnapshot(
+                order_id="ORDER_002",
+                audit_status="pending",
+                audit_notes="等待财务审核",
+                audited_by=None,
+                audited_at=None,
+            ),
+        }
+        
+        self._order_exceptions = {
+            "ORDER_001": [
+                OrderExceptionSnapshot(
+                    exception_id="EXC_ORDER_001_1",
+                    order_id="ORDER_001",
+                    exception_type="inventory_shortage",
+                    severity="medium",
+                    description="库存不足，需要补货",
+                    status="open",
+                    created_at=datetime.now(),
+                    resolved_at=None,
+                ),
+            ],
+            "ORDER_002": [
+                OrderExceptionSnapshot(
+                    exception_id="EXC_ORDER_002_1",
+                    order_id="ORDER_002",
+                    exception_type="address_issue",
+                    severity="high",
+                    description="收货地址不完整",
+                    status="open",
+                    created_at=datetime.now(),
+                    resolved_at=None,
+                ),
+                OrderExceptionSnapshot(
+                    exception_id="EXC_ORDER_002_2",
+                    order_id="ORDER_002",
+                    exception_type="payment_delay",
+                    severity="low",
+                    description="支付超时",
+                    status="resolved",
+                    created_at=datetime.now(),
+                    resolved_at=datetime.now(),
+                ),
+            ],
+        }
+        
+        self._fulfillments = {
+            "ORDER_001": FulfillmentSnapshot(
+                order_id="ORDER_001",
+                status="picking",
+                warehouse="WH_MAIN",
+                picking_id="PICK_001",
+                scheduled_date=datetime.now(),
+                actual_date=None,
+            ),
+            "ORDER_002": FulfillmentSnapshot(
+                order_id="ORDER_002",
+                status="pending",
+                warehouse="WH_MAIN",
+                picking_id=None,
+                scheduled_date=datetime.now(),
+                actual_date=None,
+            ),
         }
     
     def get_inventory(self, product_id: str) -> Optional[InventorySnapshot]:
@@ -94,12 +187,24 @@ class OdooMockProvider:
     
     def get_order_audit(self, order_id: str) -> Optional[OrderAuditSnapshot]:
         return self._order_audits.get(order_id)
+
+    def list_order_audits(self) -> List[OrderAuditSnapshot]:
+        return list(self._order_audits.values())
     
     def get_order_exceptions(self, order_id: str) -> List[OrderExceptionSnapshot]:
         return self._order_exceptions.get(order_id, [])
+
+    def list_order_exceptions(self) -> List[OrderExceptionSnapshot]:
+        result: List[OrderExceptionSnapshot] = []
+        for exceptions in self._order_exceptions.values():
+            result.extend(exceptions)
+        return result
     
     def get_fulfillment(self, order_id: str) -> Optional[FulfillmentSnapshot]:
         return self._fulfillments.get(order_id)
+
+    def list_fulfillments(self) -> List[FulfillmentSnapshot]:
+        return list(self._fulfillments.values())
     
     def update_inventory(self, product_id: str, quantity: int) -> InventorySnapshot:
         existing = self._inventory_data.get(product_id)
