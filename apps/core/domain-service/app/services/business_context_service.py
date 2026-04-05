@@ -2,12 +2,12 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.services.after_sale_domain_service import AfterSaleDomainService
-from app.services.conversation_domain_service import ConversationDomainService
-from app.services.order_domain_service import OrderDomainService
+from app.services.after_sale_service import AfterSaleService
+from app.services.conversation_service import ConversationService
+from app.services.order_service import OrderService
 from app.services.platform_gateway_service import PlatformGatewayService
 from app.services.push_event_tracker import PushEventTracker
-from app.services.shipment_domain_service import ShipmentDomainService
+from app.services.shipment_service import ShipmentService
 
 from providers.odoo.provider import OdooProvider
 
@@ -16,10 +16,10 @@ class BusinessContextService:
     def __init__(
         self,
         gateway: PlatformGatewayService,
-        order_service: OrderDomainService,
-        shipment_service: ShipmentDomainService,
-        after_sale_service: AfterSaleDomainService,
-        conversation_service: ConversationDomainService,
+        order_service: OrderService,
+        shipment_service: ShipmentService,
+        after_sale_service: AfterSaleService,
+        conversation_service: ConversationService,
         odoo_provider: OdooProvider,
         push_event_tracker: Optional[PushEventTracker] = None,
     ):

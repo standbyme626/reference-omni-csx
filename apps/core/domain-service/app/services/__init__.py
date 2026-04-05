@@ -3,7 +3,7 @@
 from app.services.order_service import OrderService
 from app.services.shipment_service import ShipmentService
 from app.services.after_sale_service import AfterSaleService
-from app.services.conversation_domain_service import ConversationDomainService
+from app.services.conversation_service import ConversationService
 from app.services.context_resolver import ContextResolver
 from app.services.risk_evaluator import RiskEvaluator
 from app.services.reply_generator import ReplyGenerator
@@ -18,25 +18,11 @@ from app.services.platform_gateway_service import PlatformGatewayService
 from app.services.push_event_tracker import PushEventTracker
 from app.services.business_context_service import BusinessContextService
 
-# Backward-compatible aliases for old import paths.
-OrderDomainService = __import__(
-    "app.services.order_domain_service",
-    fromlist=["OrderDomainService"],
-).OrderDomainService
-ShipmentDomainService = __import__(
-    "app.services.shipment_domain_service",
-    fromlist=["ShipmentDomainService"],
-).ShipmentDomainService
-AfterSaleDomainService = __import__(
-    "app.services.after_sale_domain_service",
-    fromlist=["AfterSaleDomainService"],
-).AfterSaleDomainService
-
 __all__ = [
     "OrderService",
     "ShipmentService",
     "AfterSaleService",
-    "ConversationDomainService",
+    "ConversationService",
     "ContextResolver",
     "RiskEvaluator",
     "ReplyGenerator",
@@ -50,8 +36,4 @@ __all__ = [
     "PlatformGatewayService",
     "PushEventTracker",
     "BusinessContextService",
-    # Backward-compatible aliases.
-    "OrderDomainService",
-    "ShipmentDomainService",
-    "AfterSaleDomainService",
 ]

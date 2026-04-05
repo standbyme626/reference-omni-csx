@@ -5,7 +5,7 @@ from app.adapters.registry import PlatformRegistry, bootstrap_default_registry
 from app.core.config import settings
 from app.services.after_sale_service import AfterSaleService
 from app.services.business_context_service import BusinessContextService
-from app.services.conversation_domain_service import ConversationDomainService
+from app.services.conversation_service import ConversationService
 from app.services.context_resolver import ContextResolver
 from app.services.integration_service import IntegrationService
 from app.services.order_service import OrderService
@@ -78,9 +78,10 @@ def get_after_sale_service() -> AfterSaleService:
 
 
 @lru_cache()
-def get_conversation_service() -> ConversationDomainService:
+def get_conversation_service() -> ConversationService:
     gateway = get_platform_gateway_service()
-    return ConversationDomainService(gateway)
+    registry = get_platform_registry()
+    return ConversationService(gateway, registry)
 
 
 # ---------------------------------------------------------------------------

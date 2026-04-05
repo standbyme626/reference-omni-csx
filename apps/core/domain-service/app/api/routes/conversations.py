@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 from app.core.response import success_response
 from app.dependencies import get_conversation_service
 from app.services.compat_data import list_conversation_recommendations
-from app.services.conversation_domain_service import ConversationDomainService
+from app.services.conversation_service import ConversationService
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -95,7 +95,7 @@ async def agent_console_get_messages(
 async def agent_console_assign(
     conv_id: str,
     request: AssignRequest,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     """POST /api/conversations/{conv_id}/assign - Assign an agent to a conversation."""
     conv = _find_conv_in_search("all", conv_id)
@@ -112,7 +112,7 @@ async def agent_console_assign(
 async def agent_console_handoff(
     conv_id: str,
     request: HandoffRequest,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     """POST /api/conversations/{conv_id}/handoff - Handoff a conversation to another agent."""
     conv = _find_conv_in_search("all", conv_id)
@@ -142,7 +142,7 @@ async def list_conversations(
     status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     try:
         query = {}
@@ -161,7 +161,7 @@ async def get_conversation(
     platform: str,
     conversation_id: str,
     official_run_id: Optional[str] = None,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     try:
         conversation = service.get_conversation(
@@ -183,7 +183,7 @@ async def get_conversation_messages(
     conversation_id: str,
     limit: int = 100,
     official_run_id: Optional[str] = None,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     try:
         result = service.get_conversation_messages(
@@ -200,7 +200,7 @@ async def get_conversation_messages(
 @router.post("/search")
 async def search_conversations(
     request: SearchConversationsRequest,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     result = service.search_conversations(request.platform, request.query)
     return success_response(result)
@@ -211,7 +211,7 @@ async def state_transition(
     platform: str,
     conversation_id: str,
     request: StateTransitionRequest,
-    service: ConversationDomainService = Depends(get_conversation_service),
+    service: ConversationService = Depends(get_conversation_service),
 ):
     try:
         result = service.state_transition(platform, conversation_id, request.target_state)
