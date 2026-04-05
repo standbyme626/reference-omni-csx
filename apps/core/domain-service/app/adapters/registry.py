@@ -155,22 +155,26 @@ class _LegacyAdapter:
     def to_unified_order(self, platform_data: dict) -> dict:
         if self._order is None:
             raise NotImplementedError("Order adapter not registered")
-        return self._order.to_unified_order(platform_data)
+        result = self._order.to_unified_order(platform_data)
+        return result.model_dump() if hasattr(result, "model_dump") else result
 
     def to_unified_shipment(self, platform_data: dict) -> dict:
         if self._shipment is None:
             raise NotImplementedError("Shipment adapter not registered")
-        return self._shipment.to_unified_shipment(platform_data)
+        result = self._shipment.to_unified_shipment(platform_data)
+        return result.model_dump() if hasattr(result, "model_dump") else result
 
     def to_unified_refund(self, platform_data: dict) -> dict:
         if self._after_sale is None:
             raise NotImplementedError("After-sale adapter not registered")
-        return self._after_sale.to_unified_after_sale(platform_data)
+        result = self._after_sale.to_unified_after_sale(platform_data)
+        return result.model_dump() if hasattr(result, "model_dump") else result
 
     def to_unified_conversation(self, platform_data: dict) -> dict:
         if self._conversation is None:
             raise NotImplementedError("Conversation adapter not registered")
-        return self._conversation.to_unified_conversation(platform_data)
+        result = self._conversation.to_unified_conversation(platform_data)
+        return result.model_dump() if hasattr(result, "model_dump") else result
 
     def get_contract(self) -> "_LegacyContract":
         return _LegacyContract()

@@ -2,28 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
-from models.unified import OrderStatus
+from app.models import (
+    Order,
+    OrderStatus,
+    OrderProduct,
+    Address,
+    Shipment,
+    ShipmentNode,
+    ShipmentStatus,
+    AfterSale,
+    AfterSaleStatus,
+)
+from app.adapters.utils import (
+    parse_datetime,
+    parse_shipment_status,
+    parse_after_sale_status,
+    SHIPMENT_STATUS_TEXT,
+    AFTER_SALE_STATUS_TEXT,
+    STATUS_TEXT,
+)
 
-from .protocols import OrderAdapter, ShipmentAdapter, AfterSaleAdapter
 
-
-def _parse_datetime(value: Any):  # noqa: ANN202
-    from datetime import datetime
-    if isinstance(value, datetime):
-        return value
-    if value in (None, "", 0):
-        return datetime.now()
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value)
-    try:
-        return datetime.fromisoformat(str(value))
-    except (TypeError, ValueError):
-        return datetime.now()
-
-
-def _amount_from_minor_units(value: Any) -> str:
+def _amount(value: Any) -> str:
+    """Convert minor-units amount (cents) to string with 2 decimal places."""
     if value in (None, ""):
         return "0"
     if isinstance(value, (int, float)):
@@ -34,177 +37,166 @@ def _amount_from_minor_units(value: Any) -> str:
     return string_value
 
 
-class KuaishouOrderAdapter(OrderAdapter):
-    """Converts Kuaishou raw order data to unified order dict."""
+_KS_ORDER_STATUS_MAP: dict[Any, OrderStatus] = {
+    # String status codes
+    "CREATED": OrderStatus.WAIT_PAY,
+    "PAID": OrderStatus.PAID,
+    "WAIT_SEND": OrderStatus.WAIT_SHIP,
+    "SEND": OrderStatus.SHIPPED,
+    "DELIVERED": OrderStatus.FINISHED,
+    "FINISHED": OrderStatus.FINISHED,
+    "CLOSED": OrderStatus.TRADE_CLOSED,
+    "REFUNDING": OrderStatus.REFUNDING,
+    # Numeric status codes (legacy)
+    1: OrderStatus.WAIT_PAY,
+    2: OrderStatus.PAID,
+    3: OrderStatus.WAIT_SHIP,
+    4: OrderStatus.SHIPPED,
+    5: OrderStatus.IN_TRANSIT,
+    6: OrderStatus.FINISHED,
+    # Additional string fallbacks
+    "pending": OrderStatus.WAIT_PAY,
+    "paid": OrderStatus.PAID,
+    "delivering": OrderStatus.IN_TRANSIT,
+    "delivered": OrderStatus.FINISHED,
+    "cancelled": OrderStatus.TRADE_CLOSED,
+}
 
-    def to_unified_order(self, platform_data: Dict[str, Any]) -> Dict[str, Any]:
+
+def _parse_order_status(raw: Any) -> OrderStatus:
+    return _KS_ORDER_STATUS_MAP.get(raw, OrderStatus.WAIT_PAY)
+
+
+class KuaishouOrderAdapter:
+    """Converts Kuaishou raw order data to unified Order model."""
+
+    def to_unified_order(self, platform_data: dict[str, Any]) -> Order:
         order_data = platform_data.get("order", platform_data)
 
         receiver_info = order_data.get("receiver", {})
-        address_parts = [
-            receiver_info.get("province", ""),
-            receiver_info.get("city", ""),
-            receiver_info.get("district", ""),
-            receiver_info.get("address", ""),
-        ]
+        receiver = Address(
+            name=receiver_info.get("name", ""),
+            phone=receiver_info.get("phone", ""),
+            province=receiver_info.get("province"),
+            city=receiver_info.get("city"),
+            district=receiver_info.get("district"),
+            address=receiver_info.get("address", "")
+            or " ".join(
+                p
+                for p in [
+                    receiver_info.get("province", ""),
+                    receiver_info.get("city", ""),
+                    receiver_info.get("district", ""),
+                    receiver_info.get("address", ""),
+                ]
+                if p
+            ).strip(),
+        )
 
-        receiver = {
-            "name": receiver_info.get("name", ""),
-            "phone": receiver_info.get("phone", ""),
-            "address": receiver_info.get("address", "") or " ".join(address_parts).strip(),
-        }
-
-        items = order_data.get("productItems", order_data.get("products", []))
+        product_items = order_data.get("orderItemVOs") or order_data.get("productItems") or order_data.get("products", [])
         products = [
-            {
-                "product_id": str(item.get("itemId", "") or item.get("product_id", "")),
-                "name": item.get("itemName", "") or item.get("name", ""),
-                "price": _amount_from_minor_units(item.get("price", 0)),
-                "quantity": item.get("itemCount", item.get("quantity", 1)),
-            }
-            for item in items
+            OrderProduct(
+                product_id=str(item.get("itemId", "") or item.get("product_id", "")),
+                name=item.get("itemName", "") or item.get("name", ""),
+                price=_amount(item.get("price", 0)),
+                quantity=item.get("itemCount", item.get("quantity", 1)),
+            )
+            for item in product_items
         ]
-
-        status_map = {
-            1: OrderStatus.WAIT_PAY,
-            2: OrderStatus.PAID,
-            3: OrderStatus.WAIT_SHIP,
-            4: OrderStatus.SHIPPED,
-            5: OrderStatus.IN_TRANSIT,
-            6: OrderStatus.FINISHED,
-            "pending": OrderStatus.WAIT_PAY,
-            "paid": OrderStatus.PAID,
-            "delivering": OrderStatus.IN_TRANSIT,
-            "delivered": OrderStatus.FINISHED,
-            "cancelled": OrderStatus.TRADE_CLOSED,
-        }
 
         raw_status = order_data.get("orderStatus", order_data.get("status", 1))
-        status_enum = status_map.get(raw_status, OrderStatus.WAIT_PAY)
+        status = _parse_order_status(raw_status)
+        status_text = STATUS_TEXT.get(status, "未知状态")
 
-        created = _parse_datetime(order_data.get("createTime") or order_data.get("create_time"))
-        updated = _parse_datetime(
+        created = parse_datetime(order_data.get("createTime") or order_data.get("create_time"))
+        updated = parse_datetime(
             order_data.get("updateTime") or order_data.get("update_time") or order_data.get("createTime")
         )
 
-        return {
-            "order_id": str(order_data.get("orderId", "") or order_data.get("order_id", "")),
-            "platform": "kuaishou",
-            "status": status_enum.value,
-            "status_text": _get_status_text(status_enum),
-            "total_amount": _amount_from_minor_units(order_data.get("totalAmount", order_data.get("total_amount", 0))),
-            "pay_amount": _amount_from_minor_units(order_data.get("payAmount", order_data.get("pay_amount", 0))),
-            "freight": _amount_from_minor_units(order_data.get("freightAmount", order_data.get("freight", 0))),
-            "receiver": receiver,
-            "products": products,
-            "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
-            "updated_at": updated.isoformat() if hasattr(updated, "isoformat") else str(updated),
-            "external_order_id": order_data.get("externalOrderId"),
-        }
+        return Order(
+            order_id=str(order_data.get("orderId", "") or order_data.get("order_id", "")),
+            platform="kuaishou",
+            status=status,
+            status_text=status_text,
+            total_amount=_amount(order_data.get("totalAmount", order_data.get("total_amount", 0))),
+            pay_amount=_amount(order_data.get("payAmount", order_data.get("pay_amount", 0))),
+            freight=_amount(order_data.get("freightAmount", order_data.get("freight", 0))),
+            receiver=receiver,
+            products=products,
+            created_at=created.isoformat() if hasattr(created, "isoformat") else str(created),
+            updated_at=updated.isoformat() if hasattr(updated, "isoformat") else str(updated),
+            external_order_id=order_data.get("externalOrderId"),
+        )
 
 
-class KuaishouShipmentAdapter(ShipmentAdapter):
-    """Converts Kuaishou raw shipment data to unified shipment dict."""
+class KuaishouShipmentAdapter:
+    """Converts Kuaishou raw shipment data to unified Shipment model."""
 
-    def to_unified_shipment(self, platform_data: Dict[str, Any]) -> Dict[str, Any]:
+    def to_unified_shipment(self, platform_data: dict[str, Any]) -> Shipment:
         from datetime import datetime
+
         shipment_data = platform_data.get("shipment", platform_data)
 
-        nodes = []
+        nodes: list[ShipmentNode] = []
         if "nodes" in shipment_data:
             nodes = [
-                {
-                    "node": n.get("node") or n.get("status", ""),
-                    "time": n.get("time") or n.get("timestamp"),
-                    "description": n.get("description") or n.get("desc"),
-                }
+                ShipmentNode(
+                    node=n.get("node") or n.get("status", ""),
+                    time=n.get("time") or n.get("timestamp") or "",
+                    description=n.get("description") or n.get("desc", ""),
+                )
                 for n in shipment_data.get("nodes", [])
             ]
         elif "trace_list" in shipment_data:
-            for trace in shipment_data.get("trace_list", []):
-                nodes.append({
-                    "node": trace.get("action", ""),
-                    "time": trace.get("time"),
-                    "description": trace.get("desc", ""),
-                })
+            nodes = [
+                ShipmentNode(
+                    node=trace.get("action", ""),
+                    time=trace.get("time", ""),
+                    description=trace.get("desc", ""),
+                )
+                for trace in shipment_data.get("trace_list", [])
+            ]
 
+        raw_status = shipment_data.get("status", "unknown")
+        status = parse_shipment_status(raw_status)
+        status_text = SHIPMENT_STATUS_TEXT.get(raw_status, raw_status)
         now = datetime.now().isoformat()
-        return {
-            "shipment_id": shipment_data.get("shipment_id") or shipment_data.get("sid", ""),
-            "order_id": shipment_data.get("order_id", ""),
-            "platform": "kuaishou",
-            "status": shipment_data.get("status", "unknown"),
-            "status_text": _shipment_status_text(shipment_data.get("status", "unknown")),
-            "company": shipment_data.get("company") or shipment_data.get("company_name"),
-            "tracking_no": shipment_data.get("tracking_no") or shipment_data.get("out_sid"),
-            "nodes": nodes,
-            "created_at": shipment_data.get("created_at") or shipment_data.get("send_time") or now,
-            "updated_at": shipment_data.get("updated_at") or now,
-        }
+
+        return Shipment(
+            shipment_id=shipment_data.get("shipment_id") or shipment_data.get("sid", ""),
+            order_id=shipment_data.get("order_id", ""),
+            platform="kuaishou",
+            status=status,
+            status_text=status_text,
+            company=shipment_data.get("company") or shipment_data.get("company_name"),
+            tracking_no=shipment_data.get("tracking_no") or shipment_data.get("out_sid"),
+            nodes=nodes,
+            created_at=shipment_data.get("created_at") or shipment_data.get("send_time") or now,
+            updated_at=shipment_data.get("updated_at") or now,
+        )
 
 
-class KuaishouAfterSaleAdapter(AfterSaleAdapter):
-    """Converts Kuaishou raw after-sale data to unified after-sale dict."""
+class KuaishouAfterSaleAdapter:
+    """Converts Kuaishou raw after-sale data to unified AfterSale model."""
 
-    def to_unified_after_sale(self, platform_data: Dict[str, Any]) -> Dict[str, Any]:
+    def to_unified_after_sale(self, platform_data: dict[str, Any]) -> AfterSale:
         from datetime import datetime
+
         refund_data = platform_data.get("refund", platform_data)
 
-        return {
-            "after_sale_id": refund_data.get("refund_id") or refund_data.get("after_sale_id", ""),
-            "order_id": refund_data.get("order_id", ""),
-            "platform": "kuaishou",
-            "status": refund_data.get("status", "unknown"),
-            "status_text": _refund_status_text(refund_data.get("status", "unknown")),
-            "type": refund_data.get("refund_type", "refund"),
-            "reason": refund_data.get("reason") or refund_data.get("refund_reason", ""),
-            "description": refund_data.get("description"),
-            "refund_amount": str(refund_data.get("refund_amount") or refund_data.get("refund_fee") or "0"),
-            "created_at": refund_data.get("created_at") or refund_data.get("apply_time") or datetime.now().isoformat(),
-            "updated_at": refund_data.get("updated_at") or refund_data.get("refund_time") or datetime.now().isoformat(),
-        }
+        raw_status = refund_data.get("status", "pending")
+        status = parse_after_sale_status(raw_status)
+        status_text = AFTER_SALE_STATUS_TEXT.get(raw_status, raw_status)
 
-
-def _get_status_text(status: OrderStatus) -> str:
-    status_texts = {
-        OrderStatus.WAIT_PAY: "待付款",
-        OrderStatus.PAID: "已付款",
-        OrderStatus.WAIT_SHIP: "待发货",
-        OrderStatus.SHIPPED: "已发货",
-        OrderStatus.IN_TRANSIT: "运输中",
-        OrderStatus.FINISHED: "已完成",
-        OrderStatus.TRADE_CLOSED: "交易关闭",
-        OrderStatus.REFUNDING: "退款中",
-        OrderStatus.REFUNDED: "已退款",
-    }
-    return status_texts.get(status, "未知状态")
-
-
-def _shipment_status_text(status: str) -> str:
-    status_map = {
-        "pending": "待发货",
-        "shipped": "已发货",
-        "in_transit": "运输中",
-        "delivered": "已签收",
-        "signed": "已签收",
-        "returned": "已退回",
-        "unknown": "未知",
-    }
-    return status_map.get(status, status)
-
-
-def _refund_status_text(status: str) -> str:
-    status_map = {
-        "pending": "待处理",
-        "approved": "已同意",
-        "rejected": "已拒绝",
-        "refunding": "退款中",
-        "completed": "已完成",
-        "closed": "已关闭",
-        "WAIT_SELLER_AGREE": "等待卖家同意",
-        "WAIT_BUYER_RETURN_GOODS": "等待买家退货",
-        "WAIT_SELLER_CONFIRM_GOODS": "等待卖家确认收货",
-        "SUCCESS": "退款成功",
-        "CLOSED": "退款关闭",
-    }
-    return status_map.get(status, status)
+        return AfterSale(
+            after_sale_id=refund_data.get("refund_id") or refund_data.get("after_sale_id", ""),
+            order_id=refund_data.get("order_id", ""),
+            platform="kuaishou",
+            status=status,
+            status_text=status_text,
+            reason=refund_data.get("reason") or refund_data.get("refund_reason", ""),
+            description=refund_data.get("description") or "",
+            refund_amount=_amount(refund_data.get("refund_amount") or refund_data.get("refund_fee") or 0),
+            created_at=refund_data.get("created_at") or refund_data.get("apply_time") or datetime.now().isoformat(),
+            updated_at=refund_data.get("updated_at") or refund_data.get("refund_time") or datetime.now().isoformat(),
+        )

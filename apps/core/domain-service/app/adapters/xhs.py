@@ -1,207 +1,112 @@
 """XHS adapter: Order + Shipment + AfterSale capabilities."""
-
 from __future__ import annotations
 
 from typing import Any, Dict
 
-from models.unified import OrderStatus
+from app.models import (
+    Order, OrderProduct, Address, OrderStatus,
+    Shipment, ShipmentNode, AfterSale, AfterSaleStatus,
+)
+from app.adapters.utils import (
+    parse_datetime, parse_shipment_status, parse_after_sale_status,
+    SHIPMENT_STATUS_TEXT, AFTER_SALE_STATUS_TEXT,
+)
 
-from .protocols import OrderAdapter, ShipmentAdapter, AfterSaleAdapter
-
-
-def _parse_datetime(value: Any):  # noqa: ANN202
-    from datetime import datetime
-    if isinstance(value, datetime):
-        return value
-    if value in (None, "", 0):
-        return datetime.now()
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value)
-    try:
-        return datetime.fromisoformat(str(value))
-    except (TypeError, ValueError):
-        return datetime.now()
+XHS_ORDER_STATUS_MAP: dict[str, OrderStatus] = {
+    "created": OrderStatus.WAIT_PAY, "pending": OrderStatus.WAIT_PAY,
+    "paid": OrderStatus.PAID, "delivering": OrderStatus.IN_TRANSIT,
+    "delivered": OrderStatus.FINISHED, "completed": OrderStatus.FINISHED,
+    "cancelled": OrderStatus.TRADE_CLOSED,
+}
 
 
-def _amount_from_minor_units(value: Any) -> str:
+class XHSOrderAdapter:
+    def to_unified_order(self, platform_data: Dict[str, Any]) -> Order:
+        data = platform_data.get("order", platform_data)
+        rcv = data.get("receiver", {})
+        address = rcv.get("fullAddress", " ".join(
+            str(rcv.get(k, "")) for k in ("province", "city", "district", "address")
+        ).strip())
+        items = data.get("productItems", data.get("items", []))
+        raw_status = data.get("orderStatus", data.get("status", "created"))
+        status = XHS_ORDER_STATUS_MAP.get(raw_status, OrderStatus.WAIT_PAY)
+        created = parse_datetime(data.get("createTime") or data.get("create_time"))
+        updated = parse_datetime(data.get("updateTime") or data.get("update_time") or data.get("createTime"))
+        return Order(
+            order_id=str(data.get("orderId", "") or data.get("order_id", "")), platform="xhs",
+            status=status, status_text=STATUS_TEXT.get(status, "未知状态"),
+            total_amount=_amount(data.get("totalAmount", data.get("total_amount", 0))),
+            pay_amount=_amount(data.get("payAmount", data.get("pay_amount", 0))),
+            freight=_amount(data.get("postAmount", data.get("freight", 0))),
+            receiver=Address(name=rcv.get("name", ""), phone=rcv.get("phone", ""), address=address),
+            products=[
+                OrderProduct(
+                    product_id=str(item.get("itemId", "") or item.get("skuId", "") or item.get("item_id", "")),
+                    name=item.get("itemName", "") or item.get("skuName", ""),
+                    price=_amount(item.get("price", 0)),
+                    quantity=int(item.get("itemCount", item.get("quantity", 1)) or item.get("num", 1)),
+                )
+                for item in items
+            ],
+            created_at=created.isoformat(), updated_at=updated.isoformat(),
+            external_order_id=data.get("externalOrderId"),
+        )
+
+
+class XHSShipmentAdapter:
+    def to_unified_shipment(self, platform_data: Dict[str, Any]) -> Shipment:
+        data = platform_data.get("shipment", platform_data)
+        status = data.get("status", "unknown")
+        nodes = self._extract_nodes(data)
+        return Shipment(
+            order_id=data.get("order_id", ""), platform="xhs",
+            status=parse_shipment_status(status),
+            status_text=SHIPMENT_STATUS_TEXT.get(status, status),
+            company=str(data.get("company") or data.get("company_name")),
+            tracking_no=str(data.get("tracking_no") or data.get("out_sid")),
+            nodes=nodes,
+            created_at=str(data.get("created_at") or data.get("send_time", "")),
+            updated_at=str(data.get("updated_at", "")),
+        )
+
+    @staticmethod
+    def _extract_nodes(data: Dict[str, Any]) -> list[ShipmentNode]:
+        nodes: list[ShipmentNode] = []
+        for n in data.get("nodes", []):
+            nodes.append(ShipmentNode(
+                node=str(n.get("node") or n.get("status", "")),
+                time=str(n.get("time") or n.get("timestamp", "")),
+                description=str(n.get("description") or n.get("desc", "")),
+            ))
+        for t in data.get("trace_list", []):
+            nodes.append(ShipmentNode(
+                node=str(t.get("action", "")), time=str(t.get("time", "")),
+                description=str(t.get("desc", "")),
+            ))
+        return nodes
+
+
+class XHSAfterSaleAdapter:
+    def to_unified_after_sale(self, platform_data: Dict[str, Any]) -> AfterSale:
+        data = platform_data.get("refund", platform_data)
+        status = data.get("status", "unknown")
+        return AfterSale(
+            after_sale_id=str(data.get("refund_id") or data.get("after_sale_id", "")),
+            order_id=str(data.get("order_id", "")), platform="xhs",
+            status=parse_after_sale_status(status),
+            status_text=AFTER_SALE_STATUS_TEXT.get(status, status),
+            reason=str(data.get("reason") or data.get("refund_reason", "")),
+            description=str(data.get("description", "")),
+            refund_amount=str(data.get("refund_amount") or data.get("refund_fee") or "0"),
+            created_at=str(data.get("created_at") or data.get("apply_time", "")),
+            updated_at=str(data.get("updated_at") or data.get("refund_time", "")),
+        )
+
+
+def _amount(value: Any) -> str:
     if value in (None, ""):
         return "0"
     if isinstance(value, (int, float)):
         return f"{float(value) / 100:.2f}"
-    string_value = str(value)
-    if string_value.isdigit():
-        return f"{int(string_value) / 100:.2f}"
-    return string_value
-
-
-class XHSOrderAdapter(OrderAdapter):
-    """Converts XHS raw order data to unified order dict."""
-
-    def to_unified_order(self, platform_data: Dict[str, Any]) -> Dict[str, Any]:
-        order_data = platform_data.get("order", platform_data)
-
-        receiver_info = order_data.get("receiver", {})
-        address_parts = [
-            receiver_info.get("province", ""),
-            receiver_info.get("city", ""),
-            receiver_info.get("district", ""),
-            receiver_info.get("address", ""),
-        ]
-        full_address = receiver_info.get("fullAddress", " ".join(address_parts).strip())
-
-        receiver = {
-            "name": receiver_info.get("name", ""),
-            "phone": receiver_info.get("phone", ""),
-            "address": full_address,
-        }
-
-        items = order_data.get("productItems", order_data.get("items", []))
-        products = [
-            {
-                "product_id": str(item.get("itemId", "") or item.get("skuId", "") or item.get("item_id", "")),
-                "name": item.get("itemName", "") or item.get("skuName", ""),
-                "price": _amount_from_minor_units(item.get("price", 0)),
-                "quantity": item.get("itemCount", item.get("quantity", 1)) or item.get("num", 1),
-            }
-            for item in items
-        ]
-
-        status_map = {
-            "created": OrderStatus.WAIT_PAY,
-            "pending": OrderStatus.WAIT_PAY,
-            "paid": OrderStatus.PAID,
-            "delivering": OrderStatus.IN_TRANSIT,
-            "delivered": OrderStatus.FINISHED,
-            "completed": OrderStatus.FINISHED,
-            "cancelled": OrderStatus.TRADE_CLOSED,
-        }
-
-        raw_status = order_data.get("orderStatus", order_data.get("status", "created"))
-        status_enum = status_map.get(raw_status, OrderStatus.WAIT_PAY)
-
-        created = _parse_datetime(order_data.get("createTime") or order_data.get("create_time"))
-        updated = _parse_datetime(
-            order_data.get("updateTime") or order_data.get("update_time") or order_data.get("createTime")
-        )
-
-        return {
-            "order_id": str(order_data.get("orderId", "") or order_data.get("order_id", "")),
-            "platform": "xhs",
-            "status": status_enum.value,
-            "status_text": _get_status_text(status_enum),
-            "total_amount": _amount_from_minor_units(order_data.get("totalAmount", order_data.get("total_amount", 0))),
-            "pay_amount": _amount_from_minor_units(order_data.get("payAmount", order_data.get("pay_amount", 0))),
-            "freight": _amount_from_minor_units(order_data.get("postAmount", order_data.get("freight", 0))),
-            "receiver": receiver,
-            "products": products,
-            "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
-            "updated_at": updated.isoformat() if hasattr(updated, "isoformat") else str(updated),
-            "external_order_id": order_data.get("externalOrderId"),
-        }
-
-
-class XHSShipmentAdapter(ShipmentAdapter):
-    """Converts XHS raw shipment data to unified shipment dict."""
-
-    def to_unified_shipment(self, platform_data: Dict[str, Any]) -> Dict[str, Any]:
-        from datetime import datetime
-        shipment_data = platform_data.get("shipment", platform_data)
-
-        nodes = []
-        if "nodes" in shipment_data:
-            nodes = [
-                {
-                    "node": n.get("node") or n.get("status", ""),
-                    "time": n.get("time") or n.get("timestamp"),
-                    "description": n.get("description") or n.get("desc"),
-                }
-                for n in shipment_data.get("nodes", [])
-            ]
-        elif "trace_list" in shipment_data:
-            for trace in shipment_data.get("trace_list", []):
-                nodes.append({
-                    "node": trace.get("action", ""),
-                    "time": trace.get("time"),
-                    "description": trace.get("desc", ""),
-                })
-
-        now = datetime.now().isoformat()
-        return {
-            "shipment_id": shipment_data.get("shipment_id") or shipment_data.get("sid", ""),
-            "order_id": shipment_data.get("order_id", ""),
-            "platform": "xhs",
-            "status": shipment_data.get("status", "unknown"),
-            "status_text": _shipment_status_text(shipment_data.get("status", "unknown")),
-            "company": shipment_data.get("company") or shipment_data.get("company_name"),
-            "tracking_no": shipment_data.get("tracking_no") or shipment_data.get("out_sid"),
-            "nodes": nodes,
-            "created_at": shipment_data.get("created_at") or shipment_data.get("send_time") or now,
-            "updated_at": shipment_data.get("updated_at") or now,
-        }
-
-
-class XHSAfterSaleAdapter(AfterSaleAdapter):
-    """Converts XHS raw after-sale data to unified after-sale dict."""
-
-    def to_unified_after_sale(self, platform_data: Dict[str, Any]) -> Dict[str, Any]:
-        from datetime import datetime
-        refund_data = platform_data.get("refund", platform_data)
-
-        return {
-            "after_sale_id": refund_data.get("refund_id") or refund_data.get("after_sale_id", ""),
-            "order_id": refund_data.get("order_id", ""),
-            "platform": "xhs",
-            "status": refund_data.get("status", "unknown"),
-            "status_text": _refund_status_text(refund_data.get("status", "unknown")),
-            "type": refund_data.get("refund_type", "refund"),
-            "reason": refund_data.get("reason") or refund_data.get("refund_reason", ""),
-            "description": refund_data.get("description"),
-            "refund_amount": str(refund_data.get("refund_amount") or refund_data.get("refund_fee") or "0"),
-            "created_at": refund_data.get("created_at") or refund_data.get("apply_time") or datetime.now().isoformat(),
-            "updated_at": refund_data.get("updated_at") or refund_data.get("refund_time") or datetime.now().isoformat(),
-        }
-
-
-def _get_status_text(status: OrderStatus) -> str:
-    status_texts = {
-        OrderStatus.WAIT_PAY: "待付款",
-        OrderStatus.PAID: "已付款",
-        OrderStatus.WAIT_SHIP: "待发货",
-        OrderStatus.SHIPPED: "已发货",
-        OrderStatus.IN_TRANSIT: "运输中",
-        OrderStatus.FINISHED: "已完成",
-        OrderStatus.TRADE_CLOSED: "交易关闭",
-        OrderStatus.REFUNDING: "退款中",
-        OrderStatus.REFUNDED: "已退款",
-    }
-    return status_texts.get(status, "未知状态")
-
-
-def _shipment_status_text(status: str) -> str:
-    status_map = {
-        "pending": "待发货",
-        "shipped": "已发货",
-        "in_transit": "运输中",
-        "delivered": "已签收",
-        "signed": "已签收",
-        "returned": "已退回",
-        "unknown": "未知",
-    }
-    return status_map.get(status, status)
-
-
-def _refund_status_text(status: str) -> str:
-    status_map = {
-        "pending": "待处理",
-        "approved": "已同意",
-        "rejected": "已拒绝",
-        "refunding": "退款中",
-        "completed": "已完成",
-        "closed": "已关闭",
-        "WAIT_SELLER_AGREE": "等待卖家同意",
-        "WAIT_BUYER_RETURN_GOODS": "等待买家退货",
-        "WAIT_SELLER_CONFIRM_GOODS": "等待卖家确认收货",
-        "SUCCESS": "退款成功",
-        "CLOSED": "退款关闭",
-    }
-    return status_map.get(status, status)
+    s = str(value)
+    return f"{int(s) / 100:.2f}" if s.isdigit() else s
