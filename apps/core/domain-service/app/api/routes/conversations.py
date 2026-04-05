@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional
 
 from app.core.response import success_response
-from app.dependencies import get_conversation_domain_service
+from app.dependencies import get_conversation_service
 from app.services.compat_data import list_conversation_recommendations
 from app.services.conversation_domain_service import ConversationDomainService
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,7 +30,7 @@ router = APIRouter()
 
 def _find_conv_in_search(platform: str, conv_id: str):
     """Helper to find a conversation by ID from the mock search data."""
-    svc = get_conversation_domain_service()
+    svc = get_conversation_service()
     search = svc.search_conversations("all", {}, skip=0, limit=100)
     for conv in search["items"]:
         if conv["id"] == conv_id:
@@ -51,7 +51,7 @@ async def agent_console_get_conversation(conv_id: str, official_run_id: Optional
         return {}
 
     platform = conv["platform"]
-    svc = get_conversation_domain_service()
+    svc = get_conversation_service()
     return svc.get_conversation(
         platform,
         conv_id,
@@ -70,7 +70,7 @@ async def agent_console_get_messages(
     conv = _find_conv_in_search("all", conv_id)
     platform = conv["platform"] if conv else "wecom_kf"
 
-    svc = get_conversation_domain_service()
+    svc = get_conversation_service()
     result = svc.get_conversation_messages(
         platform,
         conv_id,
@@ -95,7 +95,7 @@ async def agent_console_get_messages(
 async def agent_console_assign(
     conv_id: str,
     request: AssignRequest,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     """POST /api/conversations/{conv_id}/assign - Assign an agent to a conversation."""
     conv = _find_conv_in_search("all", conv_id)
@@ -112,7 +112,7 @@ async def agent_console_assign(
 async def agent_console_handoff(
     conv_id: str,
     request: HandoffRequest,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     """POST /api/conversations/{conv_id}/handoff - Handoff a conversation to another agent."""
     conv = _find_conv_in_search("all", conv_id)
@@ -142,7 +142,7 @@ async def list_conversations(
     status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     try:
         query = {}
@@ -161,7 +161,7 @@ async def get_conversation(
     platform: str,
     conversation_id: str,
     official_run_id: Optional[str] = None,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     try:
         conversation = service.get_conversation(
@@ -183,7 +183,7 @@ async def get_conversation_messages(
     conversation_id: str,
     limit: int = 100,
     official_run_id: Optional[str] = None,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     try:
         result = service.get_conversation_messages(
@@ -200,7 +200,7 @@ async def get_conversation_messages(
 @router.post("/search")
 async def search_conversations(
     request: SearchConversationsRequest,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     result = service.search_conversations(request.platform, request.query)
     return success_response(result)
@@ -211,7 +211,7 @@ async def state_transition(
     platform: str,
     conversation_id: str,
     request: StateTransitionRequest,
-    service: ConversationDomainService = Depends(get_conversation_domain_service),
+    service: ConversationDomainService = Depends(get_conversation_service),
 ):
     try:
         result = service.state_transition(platform, conversation_id, request.target_state)
