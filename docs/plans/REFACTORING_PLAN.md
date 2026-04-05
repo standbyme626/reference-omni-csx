@@ -12,9 +12,9 @@
 - [x] Phase 2: 适配器层重构（Protocol + 单一直达）✅ 2026-04-05
 - [x] Phase 3: Service 层重写（拆分 God Class，单一职责）✅ 2026-04-05
 - [x] Phase 4: API 路由层重写（极简 + 统一 DI + 错误处理）✅ 2026-04-05
-- [x] Phase 5: 消除重复逻辑 ✅ 2026-04-05 (adapters 去重, platform_gateway_service 清理 Unified 引用)
+- [x] Phase 5: 消除重复逻辑 ✅ 2026-04-05
 - [ ] Phase 6: 修复测试基础设施 + 补充测试
-- [ ] Phase 7: 杂项修复 + 清理旧代码
+- [x] Phase 7: 杂项修复 + 清理旧代码 ✅ 2026-04-05（删除 platform_adapters/contracts/capabilities 等死代码）
 
 ---
 
