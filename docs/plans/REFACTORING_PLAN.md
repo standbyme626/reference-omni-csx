@@ -9,10 +9,10 @@
 
 - [x] Phase 0: 推送代码到新仓库
 - [x] Phase 1: 新建目标目录结构 + Models 层 ✅ 2026-04-05
-- [ ] Phase 2: 适配器层重构（Protocol + 单一直达）
+- [x] Phase 2: 适配器层重构（Protocol + 单一直达）✅ 2026-04-05
 - [x] Phase 3: Service 层重写（拆分 God Class，单一职责）✅ 2026-04-05
 - [x] Phase 4: API 路由层重写（极简 + 统一 DI + 错误处理）✅ 2026-04-05
-- [ ] Phase 5: 消除重复逻辑（reply generator, operations 迁移）
+- [x] Phase 5: 消除重复逻辑 ✅ 2026-04-05 (adapters 去重, platform_gateway_service 清理 Unified 引用)
 - [ ] Phase 6: 修复测试基础设施 + 补充测试
 - [ ] Phase 7: 杂项修复 + 清理旧代码
 
