@@ -4,6 +4,15 @@ from fastapi.responses import JSONResponse
 import logging
 
 from app.api.router import api_router
+from app.api.errors import (
+    DomainServiceError,
+    NotFoundError,
+    BadRequestError,
+    domain_service_error_handler,
+    not_found_error_handler,
+    bad_request_error_handler,
+    general_exception_handler,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,13 +35,11 @@ app.add_middleware(
 
 app.include_router(api_router)
 
-
-@app.get("/healthz")
-async def healthz():
-    return JSONResponse(
-        status_code=200,
-        content={"status": "ok", "service": "domain-service"}
-    )
+# Register exception handlers
+app.add_exception_handler(NotFoundError, not_found_error_handler)
+app.add_exception_handler(BadRequestError, bad_request_error_handler)
+app.add_exception_handler(DomainServiceError, domain_service_error_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 
 @app.get("/")

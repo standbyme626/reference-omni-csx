@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from typing import List, Dict
 from pydantic import BaseModel
 
@@ -18,11 +18,8 @@ async def get_shipment(
     platform: str, order_id: str, official_run_id: str | None = None,
     service: ShipmentService = Depends(get_shipment_service),
 ):
-    try:
-        shipment = service.get_shipment(platform, order_id, official_run_id=official_run_id)
-        return success_response({"shipment": shipment})
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Shipment not found for order: {order_id}")
+    shipment = service.get_shipment(platform, order_id, official_run_id=official_run_id)
+    return success_response({"shipment": shipment})
 
 
 @router.post("/batch-get")
@@ -39,8 +36,5 @@ async def get_shipment_nodes(
     platform: str, order_id: str, official_run_id: str | None = None,
     service: ShipmentService = Depends(get_shipment_service),
 ):
-    try:
-        nodes = service.get_shipment_nodes(platform, order_id, official_run_id=official_run_id)
-        return success_response({"order_id": order_id, "platform": platform, "nodes": nodes})
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Shipment not found for order: {order_id}")
+    nodes = service.get_shipment_nodes(platform, order_id, official_run_id=official_run_id)
+    return success_response({"order_id": order_id, "platform": platform, "nodes": nodes})

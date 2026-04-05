@@ -7,10 +7,10 @@
 
 ## 整体进度
 
-- [ ] Phase 0: 推送代码到新仓库
-- [ ] Phase 1: 新建目标目录结构 + Models 层
+- [x] Phase 0: 推送代码到新仓库
+- [x] Phase 1: 新建目标目录结构 + Models 层 ✅ 2026-04-05
 - [ ] Phase 2: 适配器层重构（Protocol + 单一直达）
-- [ ] Phase 3: Service 层重写（拆分 God Class，单一职责）
+- [x] Phase 3: Service 层重写（拆分 God Class，单一职责）— Phase 3a ✅ 2026-04-05, 3b 进行中
 - [ ] Phase 4: API 路由层重写（极简 + 统一 DI + 错误处理）
 - [ ] Phase 5: 消除重复逻辑（reply generator, operations 迁移）
 - [ ] Phase 6: 修复测试基础设施 + 补充测试
@@ -126,12 +126,13 @@ apps/core/domain-service/
 ### 1.2 Models 层设计 — 纯 Pydantic，告别 Dict[str, Any]
 
 - [x] **设计文档完成**
-- [ ] `Order` model
-- [ ] `Shipment` model
-- [ ] `AfterSale` model
-- [ ] `Conversation` / `Message` model
-- [ ] `Context` model (聚合快照)
-- [ ] `ContextSnapshot` (order/shipment/after_sale 的快照子结构)
+- [x] `Order` model
+- [x] `Shipment` model
+- [x] `AfterSale` model
+- [x] `Conversation` / `Message` model
+- [x] `Context` model (聚合快照)
+- [x] `Customer` / `CustomerTag` model (新增)
+- [n/a] `ContextSnapshot` — deleted as empty stub
 
 ### 涉及文件
 - 新建：`app/models/*.py`（6 个文件）

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from typing import List, Dict
 from pydantic import BaseModel
 
@@ -18,11 +18,8 @@ async def get_order(
     platform: str, order_id: str, official_run_id: str | None = None,
     service: OrderService = Depends(get_order_service),
 ):
-    try:
-        order = service.get_order(platform, order_id, official_run_id=official_run_id)
-        return success_response({"order": order})
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Order not found: {order_id}")
+    order = service.get_order(platform, order_id, official_run_id=official_run_id)
+    return success_response({"order": order})
 
 
 @router.post("/batch-get")
@@ -39,11 +36,8 @@ async def get_order_timeline(
     platform: str, order_id: str, official_run_id: str | None = None,
     service: OrderService = Depends(get_order_service),
 ):
-    try:
-        timeline = service.get_order_timeline(platform, order_id, official_run_id=official_run_id)
-        return success_response({"order_id": order_id, "platform": platform, "timeline": timeline})
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Order not found: {order_id}")
+    timeline = service.get_order_timeline(platform, order_id, official_run_id=official_run_id)
+    return success_response({"order_id": order_id, "platform": platform, "timeline": timeline})
 
 
 @router.get("/{platform}/{order_id}/raw-links")

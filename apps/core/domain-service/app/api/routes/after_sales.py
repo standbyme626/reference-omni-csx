@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from typing import List, Dict
 from pydantic import BaseModel
 
@@ -18,11 +18,8 @@ async def get_after_sale(
     platform: str, after_sale_id: str, official_run_id: str | None = None,
     service: AfterSaleService = Depends(get_after_sale_service),
 ):
-    try:
-        after_sale = service.get_after_sale(platform, after_sale_id, official_run_id=official_run_id)
-        return success_response({"after_sale": after_sale})
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"After-sale not found: {after_sale_id}")
+    after_sale = service.get_after_sale(platform, after_sale_id, official_run_id=official_run_id)
+    return success_response({"after_sale": after_sale})
 
 
 @router.get("/{platform}/by-order/{order_id}")
@@ -30,11 +27,8 @@ async def get_after_sale_by_order(
     platform: str, order_id: str, official_run_id: str | None = None,
     service: AfterSaleService = Depends(get_after_sale_service),
 ):
-    try:
-        after_sale = service.get_after_sale_by_order(platform, order_id, official_run_id=official_run_id)
-        return success_response({"after_sale": after_sale, "order_id": order_id})
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"After-sale not found for order: {order_id}")
+    after_sale = service.get_after_sale_by_order(platform, order_id, official_run_id=official_run_id)
+    return success_response({"after_sale": after_sale, "order_id": order_id})
 
 
 @router.post("/batch-get")
