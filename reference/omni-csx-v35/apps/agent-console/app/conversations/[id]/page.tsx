@@ -19,6 +19,9 @@ interface Conversation {
   id: string;
   conversation_pk?: number;
   platform: string;
+  biz_platform?: string;
+  biz_id?: string;
+  biz_type?: string;
   customer_id?: string;
   customer_pk?: number;
   customer_nick: string;
@@ -616,26 +619,28 @@ export default function ConversationDetailPage() {
         
         const convData = await convRes.json();
         const msgData = await msgRes.json();
-        
-        setConversation(convData);
-        setMessages(msgData.items || []);
-        
-        const contextMap: Record<string, { platform: string; orderId?: string; bizType?: string }> = {
-          "conv_001": { platform: "taobao", orderId: "ORDER_001", bizType: "order" },
-          "conv_002": { platform: "douyin_shop", orderId: "ORDER_002", bizType: "order" },
-          "conv_003": { platform: "wecom_kf", orderId: "conv_003", bizType: "conversation" },
+
+        const resolvedConversation: Conversation = {
+          ...convData,
+          id: convData?.id || convData?.conversation_id || convId,
         };
-        const ctx = contextMap[convId];
-        
-        if (ctx && ctx.orderId) {
+
+        setConversation(resolvedConversation);
+        setMessages(msgData.items || []);
+
+        const contextPlatform = resolvedConversation.biz_platform || resolvedConversation.platform;
+        const contextBizId = resolvedConversation.biz_id || resolvedConversation.id;
+        const contextBizType = resolvedConversation.biz_type || "conversation";
+
+        if (contextPlatform && contextBizId) {
           try {
             const contextRes = await fetch(`/api/context/build`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                platform: ctx.platform,
-                biz_id: ctx.orderId,
-                biz_type: ctx.bizType || "order",
+                platform: contextPlatform,
+                biz_id: contextBizId,
+                biz_type: contextBizType,
                 include_inventory: true,
                 include_risk: true,
                 include_quality: true,
@@ -749,7 +754,8 @@ export default function ConversationDetailPage() {
         body: JSON.stringify({
           conversation_id: convId,
           message: lastMsg.content,
-          platform: conversation?.platform || "jd",
+          platform: conversation?.biz_platform || conversation?.platform || "jd",
+          order_id: conversation?.biz_type === "order" ? conversation?.biz_id : undefined,
         }),
       });
       const data = await res.json();

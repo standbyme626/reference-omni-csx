@@ -1,4 +1,7 @@
+import pytest
+from nodes.reply.base import ReplyAdapterError
 from nodes.reply.official_sim import OfficialSimReplyAdapter
+from nodes.reply.unified import UnifiedReplyAdapter
 
 
 def test_order_status_reply_from_official_sim(monkeypatch):
@@ -83,3 +86,64 @@ def test_missing_order_id_falls_back_to_stub():
 
     assert result["fallback_to_stub"] is True
     assert result["source"] == "official-sim"
+
+
+def test_unified_reply_adapter_raises_in_strict_mode_on_official_failure(monkeypatch):
+    adapter = UnifiedReplyAdapter(
+        use_official_sim=True,
+        allow_stub_fallback=False,
+        official_sim_base_url="http://localhost:8000",
+        platform="taobao",
+    )
+    monkeypatch.setattr(
+        adapter.official_adapter,
+        "get_reply",
+        lambda run_id, user_message, context: {
+            "source": "official-sim",
+            "fallback_to_stub": True,
+            "error": "official-sim unreachable",
+        },
+    )
+
+    with pytest.raises(ReplyAdapterError, match="official-sim unreachable"):
+        adapter.get_reply(
+            run_id="run_strict",
+            user_message="帮我查订单",
+            context={"platform": "taobao", "order_id": "ORDER_001", "intent": "ask_order_status"},
+        )
+
+
+def test_unified_reply_adapter_allows_explicit_stub_fallback(monkeypatch):
+    adapter = UnifiedReplyAdapter(
+        use_official_sim=True,
+        allow_stub_fallback=True,
+        official_sim_base_url="http://localhost:8000",
+        platform="taobao",
+    )
+    monkeypatch.setattr(
+        adapter.official_adapter,
+        "get_reply",
+        lambda run_id, user_message, context: {
+            "source": "official-sim",
+            "fallback_to_stub": True,
+            "error": "official-sim unreachable",
+        },
+    )
+    monkeypatch.setattr(
+        adapter.stub_adapter,
+        "get_reply",
+        lambda run_id, user_message, context: {
+            "source": "stub",
+            "text": "stub fallback reply",
+            "run_id": run_id,
+        },
+    )
+
+    result = adapter.get_reply(
+        run_id="run_demo",
+        user_message="帮我查订单",
+        context={"platform": "taobao", "order_id": "ORDER_001", "intent": "ask_order_status"},
+    )
+
+    assert result["source"] == "stub"
+    assert result["text"] == "stub fallback reply"

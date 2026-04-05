@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "XHS_ORDER_004",
+      "external_order_id": "XHS12345678901235",
       "status": "completed",
       "status_text": "已完成",
       "amount": "299.00",
@@ -38,6 +39,7 @@
     },
     {
       "order_id": "XHS_ORDER_005",
+      "external_order_id": "XHS12345678901236",
       "status": "delivering",
       "status_text": "配送中",
       "amount": "49.00",
@@ -69,6 +71,7 @@
     },
     {
       "order_id": "XHS_ORDER_006",
+      "external_order_id": "XHS12345678901237",
       "status": "refunding",
       "status_text": "退款中",
       "amount": "199.00",

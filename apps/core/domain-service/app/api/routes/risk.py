@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from app.core.response import success_response
+from app.services.compat_data import list_blacklist_customers, list_risk_cases
 from app.services.risk_service import RiskService
 
 router = APIRouter()
@@ -41,3 +42,15 @@ async def get_risk_rules():
     service = get_risk_service()
     rules = service.get_rules()
     return success_response({"rules": rules})
+
+
+@router.get("/cases")
+async def get_risk_cases():
+    items = list_risk_cases()
+    return success_response({"items": items, "total": len(items)})
+
+
+@router.get("/blacklist")
+async def get_blacklist():
+    items = list_blacklist_customers()
+    return success_response({"items": items, "total": len(items)})

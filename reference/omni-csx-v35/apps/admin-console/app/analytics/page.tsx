@@ -27,7 +27,7 @@ export default function AnalyticsPage() {
         throw new Error("Failed to fetch analytics");
       }
       const result = await response.json();
-      if (result.code === 0 && result.data) {
+      if ((result.code === 0 || result.code === "0") && result.data) {
         setData(result.data);
       } else {
         throw new Error(result.message || "Invalid response");

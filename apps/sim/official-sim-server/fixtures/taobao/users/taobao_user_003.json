@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "TB_ORDER_007",
+      "external_order_id": "12345678901238",
       "status": "WAIT_SELLER_SEND_GOODS",
       "status_text": "等待卖家发货",
       "amount": "199.00",
@@ -30,6 +31,7 @@
     },
     {
       "order_id": "TB_ORDER_008",
+      "external_order_id": "12345678901239",
       "status": "WAIT_BUYER_CONFIRM_GOODS",
       "status_text": "卖家已发货",
       "amount": "89.00",
@@ -61,6 +63,7 @@
     },
     {
       "order_id": "TB_ORDER_009",
+      "external_order_id": "12345678901240",
       "status": "TRADE_CLOSED",
       "status_text": "交易关闭",
       "amount": "399.00",

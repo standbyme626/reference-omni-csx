@@ -1,10 +1,12 @@
+from typing import Any, Dict
+
 import httpx
-from typing import Dict, Any
+
 from .base import ReplyAdapter, ReplySource
 
 
 class OfficialSimReplyAdapter(ReplyAdapter):
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8001"):
         self.base_url = base_url.rstrip("/")
 
     def get_reply(
@@ -17,6 +19,7 @@ class OfficialSimReplyAdapter(ReplyAdapter):
         order_id = context.get("order_id", "")
         user_id = context.get("user_id", "")
         intent = context.get("intent", "")
+        official_run_id = context.get("official_run_id")
 
         if not order_id:
             return {
@@ -35,6 +38,7 @@ class OfficialSimReplyAdapter(ReplyAdapter):
                 user_id=user_id,
                 user_message=user_message,
                 intent=intent,
+                official_run_id=official_run_id,
             )
             reply_text = self._build_reply_text(intent=intent, order_id=order_id, response=response)
             if not reply_text:
@@ -66,12 +70,16 @@ class OfficialSimReplyAdapter(ReplyAdapter):
         user_id: str,
         user_message: str,
         intent: str,
+        official_run_id: str | None = None,
     ) -> Dict[str, Any]:
         route_prefix = self._resolve_query_route(intent)
+        params = {"platform": platform}
+        if official_run_id:
+            params["run_id"] = official_run_id
         with httpx.Client(timeout=30.0) as client:
             response = client.get(
                 f"{self.base_url}{route_prefix}/{order_id}",
-                params={"platform": platform},
+                params=params,
             )
             response.raise_for_status()
             return response.json()

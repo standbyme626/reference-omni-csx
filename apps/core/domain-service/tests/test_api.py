@@ -1,14 +1,17 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 
+@pytest.fixture
+def client():
+    from app.main import app as domain_app
 
-client = TestClient(app)
+    with TestClient(domain_app) as test_client:
+        yield test_client
 
 
 class TestHealthEndpoint:
-    def test_healthz(self):
+    def test_healthz(self, client: TestClient):
         response = client.get("/healthz")
         
         assert response.status_code == 200
@@ -17,28 +20,28 @@ class TestHealthEndpoint:
 
 
 class TestOrdersAPI:
-    def test_get_order_not_found(self):
+    def test_get_order_not_found(self, client: TestClient):
         response = client.get("/api/orders/taobao/NONEXISTENT_ORDER")
         
         assert response.status_code == 404
 
 
 class TestShipmentsAPI:
-    def test_get_shipment_not_found(self):
+    def test_get_shipment_not_found(self, client: TestClient):
         response = client.get("/api/shipments/taobao/NONEXISTENT_ORDER")
         
         assert response.status_code == 404
 
 
 class TestAfterSalesAPI:
-    def test_get_after_sale_not_found(self):
+    def test_get_after_sale_not_found(self, client: TestClient):
         response = client.get("/api/after-sales/taobao/NONEXISTENT_ID")
         
         assert response.status_code == 404
 
 
 class TestContextAPI:
-    def test_build_context(self):
+    def test_build_context(self, client: TestClient):
         response = client.post(
             "/api/context/build",
             json={
@@ -54,8 +57,26 @@ class TestContextAPI:
         assert "data" in data
 
 
+class TestConversationsAPI:
+    def test_list_conversations_has_items(self, client: TestClient):
+        response = client.get("/api/conversations/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert data["data"]["total"] >= 1
+        assert len(data["data"]["items"]) >= 1
+
+    def test_get_conversation_recommendations(self, client: TestClient):
+        response = client.get("/api/conversations/CONV_WK_001/recommendations")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+
 class TestRecommendationsAPI:
-    def test_get_reply_recommendations(self):
+    def test_get_reply_recommendations(self, client: TestClient):
         response = client.post(
             "/api/recommendations/reply",
             json={
@@ -72,7 +93,7 @@ class TestRecommendationsAPI:
 
 
 class TestQualityAPI:
-    def test_check_reply(self):
+    def test_check_reply(self, client: TestClient):
         response = client.post(
             "/api/quality/check-reply",
             json={
@@ -85,7 +106,7 @@ class TestQualityAPI:
         assert data["code"] == "0"
         assert "score" in data["data"]
     
-    def test_check_reply_short(self):
+    def test_check_reply_short(self, client: TestClient):
         response = client.post(
             "/api/quality/check-reply",
             json={
@@ -97,9 +118,25 @@ class TestQualityAPI:
         data = response.json()
         assert data["data"]["score"] < 100
 
+    def test_get_quality_results(self, client: TestClient):
+        response = client.get("/api/quality/results")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert isinstance(data["data"]["items"], list)
+
+    def test_get_quality_alerts(self, client: TestClient):
+        response = client.get("/api/quality/alerts")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert isinstance(data["data"]["items"], list)
+
 
 class TestRiskAPI:
-    def test_check_order(self):
+    def test_check_order(self, client: TestClient):
         response = client.post(
             "/api/risk/check-order",
             json={
@@ -116,10 +153,52 @@ class TestRiskAPI:
         assert data["code"] == "0"
         assert "level" in data["data"]
     
-    def test_get_rules(self):
+    def test_get_rules(self, client: TestClient):
         response = client.get("/api/risk/rules")
         
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"
         assert "rules" in data["data"]
+
+    def test_get_risk_cases(self, client: TestClient):
+        response = client.get("/api/risk/cases")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert isinstance(data["data"]["items"], list)
+
+    def test_get_risk_blacklist(self, client: TestClient):
+        response = client.get("/api/risk/blacklist")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert isinstance(data["data"]["items"], list)
+
+
+class TestCompatRoutesAPI:
+    def test_get_management_voc_topics(self, client: TestClient):
+        response = client.get("/api/management/voc-topics")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert isinstance(data["data"]["items"], list)
+
+    def test_get_customer_profile(self, client: TestClient):
+        response = client.get("/api/customers/1/profile")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert data["data"]["customer_id"] == 1
+
+    def test_get_kb_documents(self, client: TestClient):
+        response = client.get("/api/kb/documents")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == "0"
+        assert isinstance(data["data"]["items"], list)

@@ -582,6 +582,7 @@
 
                 updateDebugInfo(data);
                 updateStatus(`第 ${currentTurn} 轮完成`);
+                await loadConversationHistory();
 
                 if (!data.continue_suggested) {
                     updateStatus('对话已结束');
@@ -654,6 +655,9 @@
             document.getElementById('debugIntent').textContent = data.intent;
             document.getElementById('debugReplySource').textContent = data.reply_source;
 
+            if (data.user_id) document.getElementById('debugUserId').textContent = data.user_id;
+            if (data.order_id) document.getElementById('debugOrderId').textContent = data.order_id;
+
             if (data.tool_calls && data.tool_calls.length > 0) {
                 const toolCallsDiv = document.getElementById('toolCalls');
                 toolCallsDiv.innerHTML = data.tool_calls.map(tc => `
@@ -664,7 +668,7 @@
                 `).join('');
             }
 
-            document.getElementById('debugPlatform').textContent = platform.value;
+            document.getElementById('debugPlatform').textContent = data.platform_value || platform.value;
         }
 
         function showLoading() {
@@ -701,6 +705,28 @@
             setTimeout(() => {
                 addMessage('agent', '这是一条模拟回复，实际来自 Stub 或 Official-Sim', null, null, 'stub');
             }, 500);
+        }
+
+        async function loadConversationHistory() {
+            if (!currentRunId) return;
+            try {
+                const resp = await fetch(`${API_BASE}/conversation-studio/runs/${currentRunId}/messages`);
+                if (!resp.ok) return;
+                const messages = await resp.json();
+                const div = document.getElementById('conversationHistory');
+                if (messages.length === 0) {
+                    div.innerHTML = '<div class="empty-state" style="padding: 10px;">暂无对话</div>';
+                    return;
+                }
+                div.innerHTML = messages.map(m => `
+                    <div class="debug-item">
+                        <label>${m.role === 'user' ? '👤 用户' : '🤖 客服'}</label>
+                        <span>${escapeHtml(m.content)}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Failed to load conversation history:', e);
+            }
         }
     </script>
 </body>

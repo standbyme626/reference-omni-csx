@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "DS_ORDER_007",
+      "external_order_id": "6912558345648290207",
       "status": "30",
       "status_text": "已支付待发货",
       "amount": "159.00",
@@ -30,6 +31,7 @@
     },
     {
       "order_id": "DS_ORDER_008",
+      "external_order_id": "6912558345648290208",
       "status": "100",
       "status_text": "已发货",
       "amount": "49.00",
@@ -61,6 +63,7 @@
     },
     {
       "order_id": "DS_ORDER_009",
+      "external_order_id": "6912558345648290209",
       "status": "400",
       "status_text": "退款成功",
       "amount": "299.00",

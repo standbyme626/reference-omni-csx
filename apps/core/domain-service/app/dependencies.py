@@ -1,16 +1,16 @@
 from functools import lru_cache
-from typing import Generator
 
 from app.adapters.registry import PlatformRegistry, bootstrap_default_registry
-from app.services.platform_gateway_service import PlatformGatewayService
-from app.services.order_domain_service import OrderDomainService
-from app.services.shipment_domain_service import ShipmentDomainService
-from app.services.after_sale_domain_service import AfterSaleDomainService
-from app.services.conversation_domain_service import ConversationDomainService
-from app.services.business_context_service import BusinessContextService
-from app.services.integration_service import IntegrationService
-from providers.odoo.provider import OdooProvider, OdooProviderMode
 from app.core.config import settings
+from app.services.after_sale_domain_service import AfterSaleDomainService
+from app.services.business_context_service import BusinessContextService
+from app.services.conversation_domain_service import ConversationDomainService
+from app.services.integration_service import IntegrationService
+from app.services.order_domain_service import OrderDomainService
+from app.services.platform_gateway_service import PlatformGatewayService
+from app.services.shipment_domain_service import ShipmentDomainService
+
+from providers.odoo.provider import OdooProvider, OdooProviderMode
 
 
 @lru_cache()
@@ -51,7 +51,7 @@ def get_conversation_domain_service() -> ConversationDomainService:
 
 @lru_cache()
 def get_odoo_provider() -> OdooProvider:
-    mode_value = (settings.odoo_provider_mode or settings.default_provider_mode or "mock").lower()
+    mode_value = (settings.odoo_provider_mode or OdooProviderMode.REAL.value).lower()
     mode = OdooProviderMode.REAL if mode_value == OdooProviderMode.REAL.value else OdooProviderMode.MOCK
     return OdooProvider(
         mode=mode,
@@ -69,7 +69,8 @@ def get_business_context_service() -> BusinessContextService:
     after_sale_service = get_after_sale_domain_service()
     conversation_service = get_conversation_domain_service()
     odoo_provider = get_odoo_provider()
-    
+    push_tracker = get_push_event_tracker()
+
     return BusinessContextService(
         gateway=gateway,
         order_service=order_service,
@@ -77,9 +78,16 @@ def get_business_context_service() -> BusinessContextService:
         after_sale_service=after_sale_service,
         conversation_service=conversation_service,
         odoo_provider=odoo_provider,
+        push_event_tracker=push_tracker,
     )
 
 
 def get_integration_service() -> IntegrationService:
     odoo_provider = get_odoo_provider()
     return IntegrationService(odoo_provider)
+
+
+@lru_cache()
+def get_push_event_tracker():
+    from app.services.push_event_tracker import PushEventTracker
+    return PushEventTracker()

@@ -9,7 +9,7 @@ export async function POST() {
       headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data?.data ?? data, { status: response.status });
   } catch (error) {
     return NextResponse.json({ error: "Failed to reindex" }, { status: 500 });
   }

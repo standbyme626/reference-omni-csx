@@ -64,7 +64,12 @@ pip install fastapi uvicorn pydantic pydantic-settings
 ### 启动服务
 
 ```bash
-cd apps/domain-service
+# 1) 先启动 official-sim-server（严格链路模式下必需）
+cd apps/sim/official-sim-server
+PYTHONPATH=/home/kkk/Project/platform-sim uvicorn app.main:app --host 0.0.0.0 --port 8001
+
+# 2) 再启动 domain-service
+cd apps/core/domain-service
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -123,7 +128,7 @@ curl -X POST http://localhost:8000/api/risk/check-order \
 ## 目录结构
 
 ```
-apps/domain-service/
+apps/core/domain-service/
 ├── app/
 │   ├── main.py              # FastAPI 应用入口
 │   ├── core/                # 核心配置
@@ -168,18 +173,24 @@ apps/domain-service/
 | ENVIRONMENT | 运行环境 | development |
 | DATABASE_URL | 数据库连接串 | - |
 | OFFICIAL_SIM_BASE_URL | sim服务地址 | http://localhost:8001 |
-| DEFAULT_PROVIDER_MODE | provider模式 | mock |
+| DEFAULT_PROVIDER_MODE | provider模式（official_sim/mock/real） | official_sim |
+| OFFICIAL_SIM_ENABLE_MOCK_FALLBACK | official-sim 不可达时是否回退本地mock，仅 `development` 生效 | false |
+| ODOO_PROVIDER_MODE | Odoo provider 模式（real/mock） | real |
+| ODOO_BASE_URL | Odoo 地址 | http://localhost:8069 |
+| ODOO_DB | Odoo 数据库名 | odoo |
+| ODOO_USERNAME | Odoo 用户名 | admin |
+| ODOO_API_KEY | Odoo API Key / 密码 | - |
 
 ## 测试
 
 ```bash
-cd apps/domain-service
+cd apps/core/domain-service
 pytest tests/ -v
 ```
 
 ## 相关模块
 
-- [official-sim-server](../official-sim-server) - 官方平台行为仿真层
-- [ai-orchestrator](../ai-orchestrator) - AI 编排层
-- [providers](../../providers) - 平台供数端
-- [Odoo Provider](../../providers/odoo) - ERP 供数端
+- [official-sim-server](../../sim/official-sim-server) - 官方平台行为仿真层
+- [user-sim-service](../../sim/user-sim-service) - AI 编排与用户仿真层
+- [providers](../../../providers) - 平台供数端
+- [Odoo Provider](../../../providers/odoo) - ERP 供数端

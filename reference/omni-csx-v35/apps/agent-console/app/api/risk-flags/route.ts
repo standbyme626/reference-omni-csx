@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(body),
     });
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data?.data ?? data, { status: response.status });
   } catch (error) {
     return NextResponse.json({ error: "Failed to create risk flag" }, { status: 500 });
   }

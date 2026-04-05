@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "KS_ORDER_001",
+      "external_order_id": "KS12345678901231",
       "status": "paid",
       "status_text": "已付款待发货",
       "amount": "99.00",
@@ -30,6 +31,7 @@
     },
     {
       "order_id": "KS_ORDER_002",
+      "external_order_id": "KS12345678901235",
       "status": "shipped",
       "status_text": "已发货",
       "amount": "69.00",
@@ -61,6 +63,7 @@
     },
     {
       "order_id": "KS_ORDER_003",
+      "external_order_id": "KS12345678901234",
       "status": "refunding",
       "status_text": "退款中",
       "amount": "199.00",

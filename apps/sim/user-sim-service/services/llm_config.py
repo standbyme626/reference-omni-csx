@@ -16,11 +16,11 @@ class LLMConfig:
     )
     OPENAI_MODEL_NAME: str = os.getenv(
         "OPENAI_MODEL_NAME",
-        "qwen-turbo-2025-07-15,qwen-plus-2025-07-28,qwen-max-latest,qwen3-32b"
+        "qwen-plus-2025-07-28"
     )
     MODEL_CANDIDATES: str = os.getenv(
         "MODEL_CANDIDATES",
-        "qwen-turbo-2025-07-15,qwen-plus-2025-07-28,qwen-max-latest,qwen3-32b"
+        "qwen-plus-2025-07-28"
     )
 
     @classmethod

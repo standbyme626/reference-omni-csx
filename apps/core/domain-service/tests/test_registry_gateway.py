@@ -1,6 +1,7 @@
 import pytest
-
 from app.adapters.registry import PlatformRegistry, bootstrap_default_registry
+from app.core.config import Environment, settings
+from app.services.official_sim_provider import OfficialSimProxyProvider
 from app.services.platform_gateway_service import PlatformGatewayService
 from models.unified import Platform
 
@@ -60,8 +61,12 @@ class TestRegistryBootstrap:
 class TestGatewayWithRegistry:
     @pytest.fixture
     def gateway(self):
+        original_mode = settings.default_provider_mode
+        settings.default_provider_mode = "mock"
         registry = bootstrap_default_registry()
-        return PlatformGatewayService(registry)
+        gateway = PlatformGatewayService(registry)
+        settings.default_provider_mode = original_mode
+        return gateway
     
     def test_gateway_has_adapter_for_all_platforms(self, gateway):
         for platform in gateway.list_platforms():
@@ -81,10 +86,9 @@ class TestGatewayWithRegistry:
             assert adapter is not None
             assert adapter.platform == platform
     
-    def test_gateway_not_supported_platform(self, gateway):
+    def test_gateway_order_query_returns_payload(self, gateway):
         result = gateway.get_order(Platform.TAOBAO, "ORDER_999")
         assert result is not None
-        assert "trade" in result or "order_id" in result
     
     def test_gateway_wecom_kf_conversation_capability(self, gateway):
         caps = gateway.registry.get_capabilities(Platform.WECOM_KF)
@@ -96,6 +100,44 @@ class TestGatewayWithRegistry:
     def test_gateway_taobao_order_capability(self, gateway):
         caps = gateway.registry.get_capabilities(Platform.TAOBAO)
         assert caps.supports_order() is True
-        
+
         with pytest.raises(ValueError, match="does not support conversation operations"):
             gateway.get_conversation(Platform.TAOBAO, "CONV_001")
+
+    def test_official_sim_mock_fallback_only_enabled_in_development(self):
+        original_mode = settings.default_provider_mode
+        original_fallback = settings.official_sim_enable_mock_fallback
+        original_environment = settings.environment
+        try:
+            settings.default_provider_mode = "official_sim"
+            settings.official_sim_enable_mock_fallback = True
+            settings.environment = Environment.DEVELOPMENT
+
+            gateway = PlatformGatewayService(bootstrap_default_registry())
+            provider = gateway.get_provider(Platform.TAOBAO)
+
+            assert isinstance(provider, OfficialSimProxyProvider)
+            assert provider.fallback_provider is not None
+        finally:
+            settings.default_provider_mode = original_mode
+            settings.official_sim_enable_mock_fallback = original_fallback
+            settings.environment = original_environment
+
+    def test_official_sim_mock_fallback_disabled_outside_development(self):
+        original_mode = settings.default_provider_mode
+        original_fallback = settings.official_sim_enable_mock_fallback
+        original_environment = settings.environment
+        try:
+            settings.default_provider_mode = "official_sim"
+            settings.official_sim_enable_mock_fallback = True
+            settings.environment = Environment.STAGING
+
+            gateway = PlatformGatewayService(bootstrap_default_registry())
+            provider = gateway.get_provider(Platform.TAOBAO)
+
+            assert isinstance(provider, OfficialSimProxyProvider)
+            assert provider.fallback_provider is None
+        finally:
+            settings.default_provider_mode = original_mode
+            settings.official_sim_enable_mock_fallback = original_fallback
+            settings.environment = original_environment

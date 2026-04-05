@@ -22,6 +22,9 @@ class OrderAuditSnapshot:
     audit_notes: Optional[str] = None
     audited_by: Optional[str] = None
     audited_at: Optional[datetime] = None
+    platform_order_id: Optional[str] = None
+    odoo_order_id: Optional[str] = None
+    odoo_order_name: Optional[str] = None
 
 
 @dataclass
@@ -44,6 +47,9 @@ class FulfillmentSnapshot:
     picking_id: Optional[str] = None
     scheduled_date: Optional[datetime] = None
     actual_date: Optional[datetime] = None
+    platform_order_id: Optional[str] = None
+    odoo_order_id: Optional[str] = None
+    odoo_order_name: Optional[str] = None
 
 
 class OdooMockProvider:

@@ -71,6 +71,9 @@ class TurnContext(BaseModel):
 
 class ConversationContext(BaseModel):
     run_id: str
+    official_run_id: Optional[str] = None
+    official_run_code: Optional[str] = None
+    official_current_step: int = 0
     platform: str
     user_id: str
     order_id: str
@@ -255,6 +258,9 @@ class ConversationContext(BaseModel):
     def to_summary(self) -> Dict[str, Any]:
         return {
             "run_id": self.run_id,
+            "official_run_id": self.official_run_id,
+            "official_run_code": self.official_run_code,
+            "official_current_step": self.official_current_step,
             "platform": self.platform,
             "user_id": self.user_id,
             "order_id": self.order_id,
@@ -298,6 +304,7 @@ class ConversationContext(BaseModel):
 
         return {
             "run_id": self.run_id,
+            "official_run_id": self.official_run_id,
             "platform": self.platform,
             "scenario_name": self.scenario_name,
             "status": self.status,

@@ -1,15 +1,13 @@
-import pytest
 from datetime import datetime
 
 from adapters.platform_adapter import (
-    TaobaoAdapter,
     DouyinShopAdapter,
     JDAdapter,
-    XhsAdapter,
     KuaishouAdapter,
-    WecomKfAdapter,
+    TaobaoAdapter,
+    XhsAdapter,
 )
-from models.unified import Platform, OrderStatus
+from models.unified import OrderStatus, Platform
 
 
 class TestTaobaoAdapter:
@@ -48,7 +46,7 @@ class TestTaobaoAdapter:
         assert len(unified.products) == 1
     
     def test_from_unified_order(self):
-        from models.unified import UnifiedOrder, UnifiedAddress, UnifiedProduct
+        from models.unified import UnifiedAddress, UnifiedOrder, UnifiedProduct
         
         unified = UnifiedOrder(
             order_id="TB_ORDER_001",
@@ -100,6 +98,68 @@ class TestJDAdapter:
         assert unified.status == OrderStatus.WAIT_SHIP
         assert unified.total_amount == "199.00"
         assert unified.receiver.name == "李四"
+
+    def test_to_unified_order_from_official_wait_pay_fixture_uses_zero_paid_amount(self):
+        platform_data = {
+            "jingdong_order_search_responce": {
+                "orderId": 98765432101234,
+                "orderStatus": 31000,
+                "orderStartTime": "2026-03-29 10:00:00",
+                "orderStatusTime": "2026-03-29 10:00:00",
+                "orderPurchaseTime": None,
+                "buyerFullName": "张三",
+                "buyerMobile": "138****0000",
+                "buyerFullAddress": "浙江省杭州市余杭区文一西路999号",
+                "orderTotalMoney": 19900,
+                "orderBuyerPayableMoney": 19900,
+                "orderFreightMoney": 0,
+                "product": [
+                    {
+                        "skuId": 100012345678,
+                        "skuName": "京东仿真商品A",
+                        "jdPrice": 9900,
+                        "num": 2,
+                    }
+                ],
+            }
+        }
+
+        unified = JDAdapter.to_unified_order(platform_data)
+
+        assert unified.status == OrderStatus.WAIT_PAY
+        assert unified.total_amount == "199.00"
+        assert unified.pay_amount == "0.00"
+        assert unified.products[0].price == "99.00"
+
+    def test_to_unified_order_from_official_shipped_fixture_maps_shipped_status(self):
+        platform_data = {
+            "jingdong_order_search_responce": {
+                "orderId": 98765432101234,
+                "orderStatus": 33040,
+                "orderStartTime": "2026-03-29 10:00:00",
+                "orderStatusTime": "2026-03-29 14:00:00",
+                "orderPurchaseTime": "2026-03-29 10:05:00",
+                "buyerFullName": "张三",
+                "buyerMobile": "138****0000",
+                "buyerFullAddress": "浙江省杭州市余杭区文一西路999号",
+                "orderTotalMoney": 19900,
+                "orderBuyerPayableMoney": 19900,
+                "orderFreightMoney": 0,
+                "product": [
+                    {
+                        "skuId": 100012345678,
+                        "skuName": "京东仿真商品A",
+                        "jdPrice": 9900,
+                        "num": 2,
+                    }
+                ],
+            }
+        }
+
+        unified = JDAdapter.to_unified_order(platform_data)
+
+        assert unified.status == OrderStatus.SHIPPED
+        assert unified.pay_amount == "199.00"
 
 
 class TestXhsAdapter:
@@ -164,3 +224,44 @@ class TestKuaishouAdapter:
         assert unified.order_id == "KS_ORDER_001"
         assert unified.platform == Platform.KUAISHOU
         assert unified.status == OrderStatus.FINISHED
+
+
+class TestDouyinShopAdapter:
+    def test_to_unified_order_from_official_fixture_converts_minor_units(self):
+        platform_data = {
+            "order": {
+                "order_id": "6912558345648290211",
+                "order_status": 10,
+                "create_time": 1743264000,
+                "update_time": 1743264000,
+                "order_amount": {
+                    "total_amount": 19900,
+                    "pay_amount": 0,
+                    "freight_amount": 0,
+                },
+                "receiver": {
+                    "name": "张三",
+                    "phone": "138****0000",
+                    "province": "浙江省",
+                    "city": "杭州市",
+                    "district": "余杭区",
+                    "address": "文一西路999号",
+                },
+                "product_items": [
+                    {
+                        "product_id": "3520562294461467753",
+                        "product_name": "抖店仿真商品A",
+                        "product_count": 2,
+                        "product_price": 9900,
+                    }
+                ],
+            }
+        }
+
+        unified = DouyinShopAdapter.to_unified_order(platform_data)
+
+        assert unified.order_id == "6912558345648290211"
+        assert unified.status == OrderStatus.WAIT_PAY
+        assert unified.total_amount == "199.00"
+        assert unified.pay_amount == "0.00"
+        assert unified.products[0].price == "99.00"

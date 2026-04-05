@@ -1,8 +1,16 @@
 import json
+import os
 from pathlib import Path
 from collections import defaultdict
 
-DATA_DIR = Path("/home/kkk/Project/platform-sim/data/extracted_user_queries")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = Path(
+    os.getenv(
+        "PLATFORM_SIM_QUERY_OUTPUT_DIR",
+        str(REPO_ROOT / "data" / "extracted_user_queries"),
+    )
+)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_FILE = DATA_DIR / "user_prompt_templates.json"
 
 def load_clean_queries():

@@ -2,7 +2,9 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, '/home/kkk/Project/platform-sim')
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
 from providers.jd.provider import JdProvider
 from providers.xhs.provider import XhsProvider

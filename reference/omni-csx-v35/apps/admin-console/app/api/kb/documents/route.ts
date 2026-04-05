@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 
 const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
+export async function GET() {
+  try {
+    const response = await fetch(`${API_GATEWAY_URL}/api/kb/documents`, {
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await response.json();
+    const payload = data?.data ?? data;
+    return NextResponse.json(payload?.items ?? payload ?? [], { status: response.status });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to fetch documents" }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -11,7 +24,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(body),
     });
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data?.data ?? data, { status: response.status });
   } catch (error) {
     return NextResponse.json({ error: "Failed to upload document" }, { status: 500 });
   }

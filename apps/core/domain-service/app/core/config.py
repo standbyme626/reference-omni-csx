@@ -1,6 +1,7 @@
-from pydantic_settings import BaseSettings
-from typing import Optional
 from enum import Enum
+from typing import Optional
+
+from pydantic_settings import BaseSettings
 
 
 class Environment(str, Enum):
@@ -16,13 +17,16 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None
     
     official_sim_base_url: str = "http://localhost:8001"
-    
-    default_provider_mode: str = "mock"
-    odoo_provider_mode: str = "mock"
+    official_sim_enable_mock_fallback: bool = False
+
+    default_provider_mode: str = "official_sim"
+    odoo_provider_mode: str = "real"
     odoo_base_url: str = "http://localhost:8069"
     odoo_db: str = "odoo"
     odoo_username: str = "admin"
     odoo_api_key: str = ""
+
+    push_domain_service_url: str = "http://localhost:8000/api/push-events"
     
     class Config:
         env_file = ".env"

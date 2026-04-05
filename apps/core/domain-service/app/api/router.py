@@ -7,12 +7,17 @@ from app.api.routes import (
     after_sales,
     conversations,
     context,
+    customers,
+    kb,
+    management,
     recommendations,
     quality,
     risk,
     integration,
     analytics,
     operations,
+    push_events,
+    ai_suggestion,
 )
 
 api_router = APIRouter()
@@ -23,9 +28,14 @@ api_router.include_router(shipments.router, prefix="/api/shipments", tags=["ship
 api_router.include_router(after_sales.router, prefix="/api/after-sales", tags=["after-sales"])
 api_router.include_router(conversations.router, prefix="/api/conversations", tags=["conversations"])
 api_router.include_router(context.router, prefix="/api/context", tags=["context"])
+api_router.include_router(customers.router, prefix="/api", tags=["customers"])
+api_router.include_router(kb.router, prefix="/api/kb", tags=["knowledge"])
+api_router.include_router(management.router, prefix="/api/management", tags=["management"])
 api_router.include_router(recommendations.router, prefix="/api/recommendations", tags=["recommendations"])
 api_router.include_router(quality.router, prefix="/api/quality", tags=["quality"])
 api_router.include_router(risk.router, prefix="/api/risk", tags=["risk"])
 api_router.include_router(integration.router, prefix="/api/integration", tags=["integration"])
 api_router.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 api_router.include_router(operations.router, prefix="/api", tags=["operations"])
+api_router.include_router(push_events.router, prefix="/api/push-events", tags=["push-events"])
+api_router.include_router(ai_suggestion.router, prefix="/api/ai", tags=["ai"])

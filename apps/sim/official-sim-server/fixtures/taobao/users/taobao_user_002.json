@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "TB_ORDER_004",
+      "external_order_id": "12345678901235",
       "status": "TRADE_BUYER_SIGNED",
       "status_text": "已签收",
       "amount": "899.00",
@@ -40,6 +41,7 @@
     },
     {
       "order_id": "TB_ORDER_005",
+      "external_order_id": "12345678901236",
       "status": "TRADE_FINISHED",
       "status_text": "交易完成",
       "amount": "45.00",
@@ -70,6 +72,7 @@
     },
     {
       "order_id": "TB_ORDER_006",
+      "external_order_id": "12345678901237",
       "status": "TRADE_REFUNDING",
       "status_text": "退款中",
       "amount": "1299.00",

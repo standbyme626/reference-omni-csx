@@ -132,6 +132,7 @@ class BusinessContextBuildRequest(BaseModel):
     platform: str
     biz_id: str
     biz_type: str = "order"
+    official_run_id: Optional[str] = None
     include_inventory: bool = False
     include_risk: bool = True
     include_quality: bool = True

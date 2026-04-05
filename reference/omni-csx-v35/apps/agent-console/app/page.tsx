@@ -71,12 +71,13 @@ export default function HomePage() {
       try {
         const res = await fetch("/api/analytics/summaries");
         const data = await res.json();
-        if (data.items) {
+        const payload = data?.data ?? data;
+        if (payload) {
           setSummary({
-            total_conversations: data.items.total_conversations || 0,
-            active_conversations: data.items.active_conversations || 0,
-            pending_followups: data.items.pending_followups || 0,
-            risk_alerts: data.items.risk_alerts || 0,
+            total_conversations: payload.total_conversations || 0,
+            active_conversations: payload.active_conversations || 0,
+            pending_followups: payload.pending_followups || 0,
+            risk_alerts: payload.risk_alerts || 0,
           });
         }
 
@@ -209,7 +210,7 @@ export default function HomePage() {
             </div>
             <div className="flex space-x-4">
               <a
-                href="http://100.92.134.46:8000"
+                href="http://localhost:8001"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors"
@@ -217,7 +218,7 @@ export default function HomePage() {
                 Sim Server
               </a>
               <a
-                href="http://100.92.134.46:8001"
+                href="http://localhost:8000"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-white text-purple-600 px-4 py-2 rounded-lg font-medium hover:bg-purple-50 transition-colors"

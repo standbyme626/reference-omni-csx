@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "JD_ORDER_007",
+      "external_order_id": "98765432101236",
       "status": "paid",
       "status_text": "已付款待发货",
       "amount": "2599.00",
@@ -35,6 +36,7 @@
     },
     {
       "order_id": "JD_ORDER_008",
+      "external_order_id": "98765432101238",
       "status": "shipped",
       "status_text": "已发货运输中",
       "amount": "159.00",
@@ -67,6 +69,7 @@
     },
     {
       "order_id": "JD_ORDER_009",
+      "external_order_id": "98765432101239",
       "status": "cancelled",
       "status_text": "已取消",
       "amount": "899.00",

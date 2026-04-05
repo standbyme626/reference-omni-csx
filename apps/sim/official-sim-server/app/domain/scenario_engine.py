@@ -9,8 +9,6 @@ from app.platforms.taobao.profile import (
     TaobaoRefundStatus,
     ORDER_SCENARIOS as TAOBAO_SCENARIOS,
     get_default_order_payload as taobao_order_payload,
-    get_default_shipment_payload,
-    get_default_refund_payload as taobao_refund_payload,
     get_default_push_payload as taobao_push_payload,
 )
 from app.platforms.douyin_shop.profile import (
@@ -18,7 +16,6 @@ from app.platforms.douyin_shop.profile import (
     DouyinRefundStatus,
     ORDER_SCENARIOS as DOUYIN_SCENARIOS,
     get_default_order_payload as douyin_order_payload,
-    get_default_refund_payload as douyin_refund_payload,
     get_default_push_payload as douyin_push_payload,
 )
 from app.platforms.wecom_kf.profile import (
@@ -30,27 +27,61 @@ from app.platforms.wecom_kf.profile import (
     get_default_send_msg_payload,
     get_default_event_message_payload,
 )
+from app.platforms.jd.profile import (
+    ORDER_SCENARIOS as JD_SCENARIOS,
+    get_default_push_payload as jd_push_payload,
+)
+from app.platforms.xhs.profile import (
+    ORDER_SCENARIOS as XHS_SCENARIOS,
+    get_default_push_payload as xhs_push_payload,
+)
+from app.platforms.kuaishou.profile import (
+    ORDER_SCENARIOS as KS_SCENARIOS,
+    get_default_push_payload as ks_push_payload,
+)
 
 
 PLATFORM_SCENARIOS = {
     "taobao": TAOBAO_SCENARIOS,
     "douyin_shop": DOUYIN_SCENARIOS,
     "wecom_kf": WECOM_SCENARIOS,
-}
-
-PLATFORM_ORDER_PAYLOAD = {
-    "taobao": taobao_order_payload,
-    "douyin_shop": douyin_order_payload,
-}
-
-PLATFORM_REFUND_PAYLOAD = {
-    "taobao": taobao_refund_payload,
-    "douyin_shop": douyin_refund_payload,
+    "jd": JD_SCENARIOS,
+    "xhs": XHS_SCENARIOS,
+    "kuaishou": KS_SCENARIOS,
 }
 
 PLATFORM_PUSH_PAYLOAD = {
     "taobao": taobao_push_payload,
     "douyin_shop": douyin_push_payload,
+    "jd": jd_push_payload,
+    "xhs": xhs_push_payload,
+    "kuaishou": ks_push_payload,
+}
+
+# Push event types per platform (maps action → event_type string)
+PLATFORM_PUSH_EVENT_TYPES: Dict[str, Dict[str, str]] = {
+    "taobao": {
+        "pay": "trade.OrderStatusChanged",
+        "ship": "trade.ShipSent",
+    },
+    "douyin_shop": {
+        "pay": "order.PaySuccess",
+        "ship": "order.ShipSent",
+        "confirm": "order.ConfirmReceived",
+        "approve_refund": "refund.RefundSuccess",
+    },
+    "jd": {
+        "pay": "order_status_changed",
+        "ship": "shipment_status_changed",
+    },
+    "xhs": {
+        "pay": "order_status_changed",
+        "ship": "shipment_status_changed",
+    },
+    "kuaishou": {
+        "pay": "order_status_changed",
+        "ship": "logistics_changed",
+    },
 }
 
 
@@ -65,6 +96,7 @@ class ScenarioEngine:
         scenario_name: str,
         current_step: int,
         action: Optional[str] = None,
+        push_enabled: bool = True,
     ) -> Dict[str, Any]:
         scenarios = PLATFORM_SCENARIOS.get(platform)
         if not scenarios:
@@ -90,15 +122,11 @@ class ScenarioEngine:
 
         order_id = self._generate_order_id(platform, run_id)
 
-        if platform == "taobao":
-            self._handle_taobao_step(
-                run_id, current_step, action_name, next_status,
-                order_id, artifacts, pushes
-            )
-        elif platform == "douyin_shop":
-            self._handle_douyin_step(
-                run_id, current_step, action_name, next_status,
-                order_id, artifacts, pushes
+        if platform in ("taobao", "douyin_shop", "jd", "xhs", "kuaishou"):
+            self._handle_order_step(
+                platform, run_id, current_step, action_name, next_status,
+                order_id, artifacts, pushes,
+                push_enabled=push_enabled,
             )
         elif platform == "wecom_kf":
             self._handle_wecom_step(
@@ -124,8 +152,9 @@ class ScenarioEngine:
             return f"o{run_id.hex[:20].upper()}"
         return f"{platform.upper()}{run_id.hex[:12].upper()}"
 
-    def _handle_taobao_step(
+    def _handle_order_step(
         self,
+        platform: str,
         run_id: UUID,
         step_no: int,
         action_name: str,
@@ -133,39 +162,23 @@ class ScenarioEngine:
         order_id: str,
         artifacts: List,
         pushes: List,
+        push_enabled: bool = True,
     ):
-        if action_name == "pay":
-            order_payload = taobao_order_payload(order_id, next_status)
-            artifact = self._create_order_artifact(
-                run_id, step_no, "taobao", order_payload,
-                "/taobao/trade/order/get", "taobao.trade.order.get"
-            )
-            artifacts.append(artifact)
+        # Order artifact: create for every action
+        artifact = self._create_order_artifact(
+            run_id, step_no, platform,
+            {"order_id": order_id, "status": next_status},
+            f"/{platform}/order/get", "order.query",
+        )
+        artifacts.append(artifact)
 
-            push_payload = taobao_push_payload("trade.OrderStatusChanged", order_id)
-            push = self._create_push_event(run_id, step_no, "taobao", push_payload)
+        # Push event: only for actions that generate one, per platform
+        push_fn = PLATFORM_PUSH_PAYLOAD.get(platform)
+        event_type = PLATFORM_PUSH_EVENT_TYPES.get(platform, {}).get(action_name)
+        if push_enabled and push_fn and event_type:
+            push_payload = push_fn(event_type, order_id)
+            push = self._create_push_event(run_id, step_no, platform, push_payload)
             pushes.append(push)
-
-        elif action_name == "ship":
-            from app.platforms.taobao.profile import get_default_shipment_payload
-            shipment_payload = get_default_shipment_payload(order_id, "shipped")
-            artifact = self._create_order_artifact(
-                run_id, step_no, "taobao", shipment_payload,
-                "/taobao/logistics.detail.get", "taobao.logistics.detail.get"
-            )
-            artifacts.append(artifact)
-
-            push_payload = taobao_push_payload("trade.ShipSent", order_id)
-            push = self._create_push_event(run_id, step_no, "taobao", push_payload)
-            pushes.append(push)
-
-        elif action_name == "confirm_receive":
-            order_payload = taobao_order_payload(order_id, next_status)
-            artifact = self._create_order_artifact(
-                run_id, step_no, "taobao", order_payload,
-                "/taobao/trade/order.get", "taobao.trade.order.get"
-            )
-            artifacts.append(artifact)
 
     def _handle_douyin_step(
         self,

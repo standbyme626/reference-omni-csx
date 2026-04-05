@@ -1,12 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict
 
 
 class ReplySource(str, Enum):
     OFFICIAL_SIM = "official-sim"
     STUB = "stub"
     UNIFIED = "unified"
+
+
+class ReplyAdapterError(RuntimeError):
+    """Raised when a reply adapter cannot produce a valid reply in strict mode."""
 
 
 class ReplyAdapter(ABC):

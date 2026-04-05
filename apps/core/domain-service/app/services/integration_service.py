@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 
-from providers.odoo.provider import OdooProvider, OdooProviderMode
+from providers.odoo.provider import OdooProvider
 from providers.odoo.mock.provider import InventorySnapshot, OrderAuditSnapshot, OrderExceptionSnapshot, FulfillmentSnapshot
 
 
@@ -19,9 +18,13 @@ class IntegrationService:
             inventories = self.odoo_provider.list_inventory(warehouse)
             return [self._serialize_inventory(inv) for inv in inventories]
 
-    def get_order_audits(self, order_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_order_audits(
+        self,
+        order_id: Optional[str] = None,
+        platform: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         if order_id:
-            audit = self.odoo_provider.get_order_audit(order_id)
+            audit = self.odoo_provider.get_order_audit(order_id, platform=platform)
             if audit:
                 return [self._serialize_audit(audit)]
             return []
@@ -43,9 +46,13 @@ class IntegrationService:
 
         return [self._serialize_exception(e) for e in exceptions]
 
-    def get_fulfillment(self, order_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_fulfillment(
+        self,
+        order_id: Optional[str] = None,
+        platform: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         if order_id:
-            fulfillment = self.odoo_provider.get_fulfillment(order_id)
+            fulfillment = self.odoo_provider.get_fulfillment(order_id, platform=platform)
             if fulfillment:
                 return [self._serialize_fulfillment(fulfillment)]
             return []

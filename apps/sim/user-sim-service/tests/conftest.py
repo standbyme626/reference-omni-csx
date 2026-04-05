@@ -1,4 +1,30 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+REPO_ROOT = Path(__file__).resolve().parents[4]
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _prepend_path(path: Path) -> None:
+    path_str = str(path)
+    if path_str in sys.path:
+        sys.path.remove(path_str)
+    sys.path.insert(0, path_str)
+
+
+_prepend_path(REPO_ROOT)
+_prepend_path(SERVICE_ROOT)
+
+
+def _activate_user_sim_imports() -> None:
+    _prepend_path(REPO_ROOT)
+    _prepend_path(SERVICE_ROOT)
+
+
+def pytest_collect_file(file_path, parent):
+    _activate_user_sim_imports()
+    return None
+
+
+def pytest_runtest_setup(item):
+    _activate_user_sim_imports()

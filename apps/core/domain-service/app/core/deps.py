@@ -1,14 +1,12 @@
-from typing import Optional
 from functools import lru_cache
 
-from app.core.config import settings
-from app.adapters.registry import PlatformRegistry
+from app.adapters.registry import PlatformRegistry, bootstrap_default_registry
 from app.services.platform_gateway_service import PlatformGatewayService
 
 
 @lru_cache()
 def get_platform_registry() -> PlatformRegistry:
-    return PlatformRegistry()
+    return bootstrap_default_registry()
 
 
 def get_platform_gateway_service() -> PlatformGatewayService:

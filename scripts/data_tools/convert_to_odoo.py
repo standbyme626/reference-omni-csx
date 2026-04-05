@@ -2,14 +2,38 @@
 Olist 数据集转换为 Odoo 导入格式
 生成可直接导入 Odoo 的 CSV 文件
 """
-import pandas as pd
+import json
 import os
-from datetime import datetime
+from pathlib import Path
 
-DATA_DIR = "/home/kkk/Project/platform-sim/data/olist_cn"
-OUTPUT_DIR = "/home/kkk/Project/platform-sim/data/odoo_import"
+import pandas as pd
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+try:
+    from scripts.data_tools.odoo_seed_mapping import (
+        build_platform_order_link_seed,
+        collect_platform_fixture_orders,
+    )
+except ModuleNotFoundError:
+    from odoo_seed_mapping import (
+        build_platform_order_link_seed,
+        collect_platform_fixture_orders,
+    )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = Path(
+    os.getenv(
+        "PLATFORM_SIM_DATA_OLIST_CN",
+        str(REPO_ROOT / "data" / "processed" / "olist_cn"),
+    )
+)
+OUTPUT_DIR = Path(
+    os.getenv(
+        "PLATFORM_SIM_DATA_ODOO_IMPORT",
+        str(REPO_ROOT / "data" / "staging" / "odoo_import"),
+    )
+)
+
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def convert_partners():
@@ -120,7 +144,6 @@ def convert_sale_orders():
     
     orders = pd.read_csv(f"{DATA_DIR}/olist_orders_dataset_cn.csv")
     customers = pd.read_csv(f"{DATA_DIR}/olist_customers_dataset_cn.csv")
-    order_items = pd.read_csv(f"{DATA_DIR}/olist_order_items_dataset_cn.csv")
     payments = pd.read_csv(f"{DATA_DIR}/olist_order_payments_dataset_cn.csv")
     
     payment_totals = payments.groupby('order_id')['payment_value'].sum().to_dict()
@@ -152,12 +175,24 @@ def convert_sale_orders():
             "amount_total": payment_totals.get(row['order_id'], 0),
             "currency_id": "CNY",
             "company_id": "Your Company",
+            "client_order_ref": row["order_id"],
             "note": f"原始状态: {row['order_status']}",
         })
     
     df = pd.DataFrame(sale_orders)
     df.to_csv(f"{OUTPUT_DIR}/sale.order.csv", index=False, encoding="utf-8-sig")
     print(f"  完成: {len(df)} 条销售订单记录")
+
+    fixture_orders = collect_platform_fixture_orders()
+    seed_payload = build_platform_order_link_seed(
+        sale_order_rows=df.to_dict(orient="records"),
+        fixture_orders=fixture_orders,
+    )
+    (OUTPUT_DIR / "platform_order_link_seed.json").write_text(
+        json.dumps(seed_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"  生成平台订单映射 seed: {len(seed_payload['links'])} 条")
     return df
 
 
@@ -249,6 +284,7 @@ def create_import_readme():
 4. **sale.order.csv** - 销售订单
 5. **sale.order.line.csv** - 销售订单明细
 6. **account.move.csv** - 发票
+7. **platform_order_link_seed.json** - 平台订单号到 Odoo 订单 seed 映射
 
 ## 导入步骤
 
@@ -292,6 +328,11 @@ def create_import_readme():
 - `partner_id`: 客户
 - `date_order`: 订单日期
 - `state`: 状态
+- `client_order_ref`: 原始外部订单参考
+
+### platform_order_link_seed.json
+- 用于把仿真平台中的典型订单号稳定挂到导入后的 Odoo 单据
+- 不伪装成 Odoo 官方字段，而是作为显式映射 seed
 
 ### sale.order.line (订单明细)
 - `order_id`: 关联订单

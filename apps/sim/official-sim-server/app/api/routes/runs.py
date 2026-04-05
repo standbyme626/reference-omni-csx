@@ -1,21 +1,22 @@
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-from uuid import UUID
-import uuid
-
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.repositories.run_repo import RunRepository
-from app.repositories.event_repo import EventRepository
-from app.repositories.snapshot_repo import SnapshotRepository
-from app.repositories.artifact_repo import ArtifactRepository
-from app.repositories.push_event_repo import PushEventRepository
-from app.models.models import RunStatus
 from app.core.errors import ErrorCode, get_error_response
 from app.domain.scenario_engine import ScenarioEngine
+from app.models.models import PushEventStatus, RunStatus
+from app.repositories.artifact_repo import ArtifactRepository
+from app.repositories.event_repo import EventRepository
+from app.repositories.push_event_repo import PushEventRepository
+from app.repositories.run_repo import RunRepository
+from app.repositories.snapshot_repo import SnapshotRepository
 
 router = APIRouter()
 
@@ -196,11 +197,15 @@ async def advance_run(
         platform=run.platform,
         scenario_name=run.metadata_json.get("scenario_name", "wait_ship_basic"),
         current_step=new_step - 1,
+        push_enabled=(run.push_enabled != "0"),
     )
 
     snapshot_state = {
         "auth_state": {"platform": run.platform, "step": new_step},
-        "order_state": {"status": scenario_result.get("next_status", "initial")},
+        "order_state": {
+            "status": scenario_result.get("next_status", "initial"),
+            "order_id": scenario_result.get("order_id"),
+        },
         "shipment_state": {"status": "initial"},
         "after_sale_state": {"status": "no_refund"},
         "conversation_state": {"status": "initial"},
@@ -211,6 +216,23 @@ async def advance_run(
         push_repo = PushEventRepository(db)
         pushes = push_repo.list_by_run_and_step(run.id, new_step)
         snapshot_state["push_state"]["pushed"] = [str(p.id) for p in pushes]
+
+        # P1: dispatch push events to subscribers (e.g. domain-service)
+        if settings.push_domain_service_url:
+            from app.domain.push_notifier import PushNotifier
+
+            notifier = PushNotifier(
+                subscriber_urls=[settings.push_domain_service_url],
+                timeout_s=settings.push_timeout_s,
+                max_retries=settings.push_max_retries,
+            )
+            for push in pushes:
+                result = notifier.dispatch(push)
+                if result.ok:
+                    push.status = PushEventStatus.ACKED
+                else:
+                    push.status = PushEventStatus.FAILED
+            db.commit()
 
     snapshot_repo.create(
         run_id=run.id,
@@ -319,10 +341,40 @@ class ArtifactResponse(BaseModel):
     created_at: datetime
 
 
+class ArtifactCreateRequest(BaseModel):
+    artifact_kind: str = Field(
+        ...,
+        description="user_message_payload | conversation_turn_payload | reply_recommendation_payload",
+    )
+    step_no: Optional[int] = Field(default=None, description="Defaults to current run step")
+    turn_no: Optional[int] = Field(default=None, description="Conversation turn number")
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    request_headers: Dict[str, Any] = Field(default_factory=dict)
+    response_headers: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ArtifactCreateResponse(BaseModel):
+    artifact_id: str
+    run_id: str
+    step_no: int
+    platform: str
+    artifact_type: str
+    artifact_kind: str
+    created_at: datetime
+
+
+_SUPPORTED_USER_SIM_ARTIFACT_KINDS = {
+    "user_message_payload",
+    "conversation_turn_payload",
+    "reply_recommendation_payload",
+}
+
+
 @router.get("/{run_id}/artifacts", response_model=List[ArtifactResponse])
 async def list_artifacts(
     run_id: UUID,
     step_no: Optional[int] = None,
+    route_key: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     run_repo = RunRepository(db)
@@ -336,6 +388,9 @@ async def list_artifacts(
         artifacts = artifact_repo.list_by_run_and_step(run_id, step_no)
     else:
         artifacts = artifact_repo.list_by_run(run_id)
+
+    if route_key:
+        artifacts = [a for a in artifacts if (a.route_key or "") == route_key]
 
     return [
         ArtifactResponse(
@@ -353,6 +408,74 @@ async def list_artifacts(
         )
         for a in artifacts
     ]
+
+
+@router.post("/{run_id}/artifacts", response_model=ArtifactCreateResponse, status_code=201)
+async def create_artifact(
+    run_id: UUID,
+    request: ArtifactCreateRequest,
+    db: Session = Depends(get_db),
+):
+    run_repo = RunRepository(db)
+    artifact_repo = ArtifactRepository(db)
+    event_repo = EventRepository(db)
+
+    run = run_repo.get_by_id(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    if request.artifact_kind not in _SUPPORTED_USER_SIM_ARTIFACT_KINDS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "artifact_kind must be one of: "
+                + ", ".join(sorted(_SUPPORTED_USER_SIM_ARTIFACT_KINDS))
+            ),
+        )
+
+    resolved_step_no = request.step_no if request.step_no is not None else run.current_step
+    if resolved_step_no < 0:
+        raise HTTPException(status_code=400, detail="step_no must be >= 0")
+
+    artifact = artifact_repo.create(
+        run_id=run.id,
+        step_no=resolved_step_no,
+        platform=run.platform,
+        # Keep enum stable while carrying detailed kind in route_key.
+        artifact_type="api_response_snapshot",
+        route_key=request.artifact_kind,
+        request_headers=request.request_headers,
+        request_body={
+            "artifact_kind": request.artifact_kind,
+            "turn_no": request.turn_no,
+            "run_id": str(run.id),
+        },
+        response_headers=request.response_headers,
+        response_body=request.payload,
+    )
+
+    event_repo.create(
+        run_id=run.id,
+        step_no=artifact.step_no,
+        event_type=request.artifact_kind,
+        source_type="user_sim_artifact",
+        payload={
+            "artifact_id": str(artifact.id),
+            "artifact_kind": request.artifact_kind,
+            "turn_no": request.turn_no,
+            **request.payload,
+        },
+    )
+
+    return ArtifactCreateResponse(
+        artifact_id=str(artifact.id),
+        run_id=str(artifact.run_id),
+        step_no=artifact.step_no,
+        platform=artifact.platform,
+        artifact_type=artifact.artifact_type.value,
+        artifact_kind=artifact.route_key or request.artifact_kind,
+        created_at=artifact.created_at,
+    )
 
 
 class PushEventResponse(BaseModel):

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -15,10 +15,12 @@ export async function GET(request: Request) {
     });
 
     const data = await response.json();
-    if (data && data.data && data.data.items) {
-      return NextResponse.json(data.data.items, { status: response.status });
-    }
-    return NextResponse.json(data, { status: response.status });
+    const payload = data?.data ?? data;
+    const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+    return NextResponse.json(
+      { items, total: payload?.total ?? items.length },
+      { status: response.status }
+    );
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch conversations" }, { status: 500 });
   }

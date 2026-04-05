@@ -1,3 +1,4 @@
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -5,6 +6,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import random
 import string
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "artifacts" / "odoo_seed"
 
 
 class ProductBuilder:
@@ -510,7 +514,7 @@ class FulfillmentBuilder:
         return picking_filepath, move_filepath
 
 
-def build_all(output_dir: str = "output/odoo_seed"):
+def build_all(output_dir: str = str(DEFAULT_OUTPUT_DIR)):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -592,4 +596,11 @@ def build_all(output_dir: str = "output/odoo_seed"):
 
 
 if __name__ == "__main__":
-    build_all()
+    parser = argparse.ArgumentParser(description="Generate Odoo seed CSV files.")
+    parser.add_argument(
+        "--output-dir",
+        default=str(DEFAULT_OUTPUT_DIR),
+        help="Directory where generated CSV files will be written.",
+    )
+    args = parser.parse_args()
+    build_all(args.output_dir)

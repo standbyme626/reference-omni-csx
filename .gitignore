@@ -67,7 +67,8 @@ data/ecommerce_dialogue_corpus/E-commerce dataset/test.txt
 data/ecommerce_dialogue_corpus/E-commerce dataset/dev.txt
 
 # Local raw/generated datasets
-data/olist/
-data/olist_cn/
-data/odoo_import/
-output/
+data/raw/olist/
+data/processed/olist_cn/
+data/staging/odoo_import/
+artifacts/*
+!artifacts/README.md

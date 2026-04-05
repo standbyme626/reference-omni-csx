@@ -25,7 +25,22 @@ export default function KnowledgePage() {
   const [reindexing, setReindexing] = useState(false);
 
   useEffect(() => {
-    setLoading(false);
+    async function fetchDocuments() {
+      try {
+        const res = await fetch("/api/kb/documents");
+        if (!res.ok) {
+          throw new Error("Failed to fetch documents");
+        }
+        const data = await res.json();
+        setDocuments(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Failed to fetch documents:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDocuments();
   }, []);
 
   const handleUpload = async () => {

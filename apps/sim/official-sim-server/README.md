@@ -34,7 +34,7 @@
 ### 1. 安装依赖
 
 ```bash
-cd apps/official-sim-server
+cd apps/sim/official-sim-server
 pip install -r requirements.txt
 ```
 
@@ -278,7 +278,7 @@ alembic downgrade -1
 ## 项目结构
 
 ```
-apps/official-sim-server/
+apps/sim/official-sim-server/
 ├── app/
 │   ├── api/
 │   │   ├── router.py

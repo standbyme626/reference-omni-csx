@@ -1,10 +1,21 @@
-from typing import Dict, Any, Optional, List
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from app.services.platform_gateway_service import PlatformGatewayService
+from adapters.platform_adapter import (
+    DouyinShopAdapter,
+    JDAdapter,
+    KuaishouAdapter,
+    TaobaoAdapter,
+    XhsAdapter,
+)
 from app.adapters.registry import PlatformRegistry
-from models.unified import Platform, UnifiedOrder, UnifiedAddress, UnifiedProduct, OrderStatus
-from adapters.platform_adapter import TaobaoAdapter, DouyinShopAdapter, JDAdapter, XhsAdapter, KuaishouAdapter
+from app.services.platform_gateway_service import PlatformGatewayService
+from models.unified import (
+    OrderStatus,
+    Platform,
+    UnifiedOrder,
+)
+
+from providers.utils.sim_identity import build_canonical_order_id, get_primary_order_id
 
 
 class OrderDomainService:
@@ -19,20 +30,46 @@ class OrderDomainService:
             Platform.KUAISHOU: KuaishouAdapter(),
         }
     
-    def get_order(self, platform: str, order_id: str) -> Dict[str, Any]:
+    def get_order(
+        self,
+        platform: str,
+        order_id: str,
+        official_run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         platform_enum = Platform(platform)
         
-        raw_data = self.gateway.get_order(platform_enum, order_id)
+        raw_data = self.gateway.get_order(
+            platform_enum,
+            order_id,
+            official_run_id=official_run_id,
+        )
+        if not isinstance(raw_data, dict) or not raw_data:
+            raise ValueError(f"Order not found: {order_id}")
         
-        adapter = self._adapters.get(platform_enum)
+        adapter = self.registry.get_adapter(platform_enum) or self._adapters.get(platform_enum)
         if adapter:
-            unified = adapter.to_unified_order(raw_data)
-            return self._unified_to_response(unified)
+            try:
+                unified = adapter.to_unified_order(raw_data)
+                response = self._unified_to_response(unified)
+                if response.get("order_id"):
+                    return self._attach_order_identity(response, platform, order_id)
+            except Exception:
+                # Fallback to generic normalization when payload shape does not
+                # match the adapter expectation (e.g. official-sim raw payloads).
+                pass
         
-        return self._raw_to_response(raw_data, platform)
+        response = self._raw_to_response(raw_data, platform)
+        if response.get("order_id"):
+            return self._attach_order_identity(response, platform, order_id)
+        raise ValueError(f"Order not found: {order_id}")
     
-    def get_order_with_user(self, platform: str, order_id: str) -> Dict[str, Any]:
-        order = self.get_order(platform, order_id)
+    def get_order_with_user(
+        self,
+        platform: str,
+        order_id: str,
+        official_run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        order = self.get_order(platform, order_id, official_run_id=official_run_id)
         
         from providers.utils.fixture_loader import FixtureLoader
         user_data = FixtureLoader.get_user_by_order(platform, order_id)
@@ -45,8 +82,13 @@ class OrderDomainService:
             } if user_data else None,
         }
     
-    def get_order_timeline(self, platform: str, order_id: str) -> List[Dict[str, Any]]:
-        order = self.get_order(platform, order_id)
+    def get_order_timeline(
+        self,
+        platform: str,
+        order_id: str,
+        official_run_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        order = self.get_order(platform, order_id, official_run_id=official_run_id)
         
         timeline = [
             {
@@ -84,7 +126,11 @@ class OrderDomainService:
         orders = []
         for req in requests:
             try:
-                order = self.get_order(req["platform"], req["order_id"])
+                order = self.get_order(
+                    req["platform"],
+                    req["order_id"],
+                    official_run_id=req.get("official_run_id"),
+                )
                 orders.append(order)
             except Exception:
                 pass
@@ -123,19 +169,127 @@ class OrderDomainService:
         }
     
     def _raw_to_response(self, raw: Dict[str, Any], platform: str) -> Dict[str, Any]:
+        if isinstance(raw.get("trade"), dict):
+            trade = raw.get("trade", {})
+            raw = {
+                **trade,
+                "order_id": trade.get("tid"),
+                "items": raw.get("orders", {}).get("order", []),
+            }
+        elif isinstance(raw.get("order"), dict):
+            order = raw.get("order", {})
+            raw = {
+                **order,
+                "order_id": order.get("order_id") or order.get("orderId"),
+                "items": order.get("productItems", raw.get("items", [])),
+                "receiver": order.get("receiver", raw.get("receiver", {})),
+            }
+        elif isinstance(raw.get("jingdong_order_search_responce"), dict):
+            order = raw.get("jingdong_order_search_responce", {})
+            raw = {
+                **order,
+                "order_id": order.get("orderId"),
+                "items": order.get("product", []),
+                "receiver": {
+                    "name": order.get("buyerFullName", ""),
+                    "phone": order.get("buyerMobile", ""),
+                    "address": order.get("buyerFullAddress", ""),
+                },
+                "total_amount": order.get("orderTotalMoney"),
+                "pay_amount": order.get("orderBuyerPayableMoney"),
+                "freight": order.get("orderFreightMoney", 0),
+                "create_time": order.get("orderStartTime"),
+                "update_time": order.get("orderStatusTime"),
+                "status": order.get("orderStatus"),
+            }
+
+        receiver = raw.get("receiver", {})
+        if not isinstance(receiver, dict):
+            receiver = {}
+
+        if not receiver and isinstance(raw.get("receiverAddress"), dict):
+            receiver_addr = raw.get("receiverAddress", {})
+            receiver = {
+                "name": raw.get("receiverName", ""),
+                "phone": raw.get("receiverPhone", ""),
+                "address": " ".join(
+                    [
+                        str(receiver_addr.get("province", "")),
+                        str(receiver_addr.get("city", "")),
+                        str(receiver_addr.get("district", "")),
+                        str(receiver_addr.get("detail", "")),
+                    ]
+                ).strip(),
+            }
+
+        products = raw.get("products", [])
+        if not products and isinstance(raw.get("items"), list):
+            products = [
+                {
+                    "product_id": str(
+                        item.get("product_id")
+                        or item.get("productId")
+                        or item.get("item_id")
+                        or item.get("oid")
+                        or item.get("skuId")
+                        or ""
+                    ),
+                    "name": item.get("name")
+                    or item.get("productName")
+                    or item.get("title")
+                    or item.get("skuName")
+                    or "",
+                    "price": str(item.get("price", "0")),
+                    "quantity": int(item.get("quantity") or item.get("num") or 1),
+                }
+                for item in raw.get("items", [])
+                if isinstance(item, dict)
+            ]
+
+        status = str(raw.get("status", "unknown"))
+
         return {
             "order_id": raw.get("order_id") or raw.get("tid") or raw.get("orderId"),
             "platform": platform,
-            "status": raw.get("status", "unknown"),
-            "status_text": raw.get("status_text", "未知状态"),
-            "total_amount": str(raw.get("total_amount") or raw.get("total_fee") or raw.get("totalAmount", "0")),
-            "pay_amount": str(raw.get("pay_amount") or raw.get("payment") or raw.get("payAmount", "0")),
-            "freight": str(raw.get("freight", "0")),
-            "receiver": raw.get("receiver", {}),
-            "products": raw.get("products", []),
-            "created_at": raw.get("created_at") or raw.get("created"),
-            "updated_at": raw.get("updated_at") or raw.get("modified"),
+            "status": status.lower(),
+            "status_text": raw.get("status_text") or raw.get("orderStatusName") or "未知状态",
+            "total_amount": str(
+                raw.get("total_amount")
+                or raw.get("amount")
+                or raw.get("total_fee")
+                or raw.get("totalAmount")
+                or "0"
+            ),
+            "pay_amount": str(
+                raw.get("pay_amount")
+                or raw.get("payment")
+                or raw.get("payAmount")
+                or raw.get("paymentAmount")
+                or raw.get("amount")
+                or "0"
+            ),
+            "freight": str(raw.get("freight") or raw.get("post_fee") or raw.get("freightAmount") or "0"),
+            "receiver": receiver,
+            "products": products,
+            "created_at": raw.get("created_at") or raw.get("create_time") or raw.get("createTime") or raw.get("created"),
+            "updated_at": raw.get("updated_at") or raw.get("update_time") or raw.get("updateTime") or raw.get("paid_at") or raw.get("modified"),
         }
+
+    def _attach_order_identity(
+        self,
+        response: Dict[str, Any],
+        platform: str,
+        requested_order_id: str,
+    ) -> Dict[str, Any]:
+        observed_order_id = str(response.get("order_id") or requested_order_id)
+        resolved_external_order_id = get_primary_order_id(
+            platform,
+            str(response.get("external_order_id") or observed_order_id),
+        )
+        response["requested_order_id"] = str(requested_order_id)
+        response["external_order_id"] = resolved_external_order_id
+        response["canonical_order_id"] = build_canonical_order_id(platform, resolved_external_order_id)
+        return response
     
     def _get_status_text(self, status: OrderStatus) -> str:
         status_texts = {

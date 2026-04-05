@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
+from app.core.database import Base, engine
 
 app = FastAPI(
     title="Official Sim Server",
@@ -10,6 +11,9 @@ app = FastAPI(
 )
 
 app.include_router(api_router)
+
+# Dev-friendly bootstrap: ensure core tables exist.
+Base.metadata.create_all(bind=engine)
 
 
 @app.get("/healthz")

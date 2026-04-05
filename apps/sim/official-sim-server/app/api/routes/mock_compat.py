@@ -65,7 +65,6 @@ FIXTURE_ALIAS: Dict[str, Dict[str, str]] = {
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _REPO_ROOT = _PROJECT_ROOT.parent.parent.parent
 _OMNI_FIXTURE_CANDIDATES = [
-    _REPO_ROOT / "multiplatform_mock_openapi_zh" / "apps" / "mock-platform-server" / "app" / "data",
     _REPO_ROOT / "reference" / "omni-csx-v35" / "apps" / "mock-platform-server" / "app" / "data",
 ]
 _OMNI_FIXTURE_BASE = next((p for p in _OMNI_FIXTURE_CANDIDATES if p.exists()), _OMNI_FIXTURE_CANDIDATES[0])

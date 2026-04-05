@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from app.core.response import success_response
+from app.services.compat_data import list_quality_alerts, list_quality_results
 from app.services.quality_service import QualityService
 
 router = APIRouter()
@@ -41,3 +42,15 @@ async def get_quality_rules():
     service = get_quality_service()
     rules = service.get_rules()
     return success_response({"rules": rules})
+
+
+@router.get("/results")
+async def get_quality_results():
+    items = list_quality_results()
+    return success_response({"items": items, "total": len(items)})
+
+
+@router.get("/alerts")
+async def get_quality_alerts():
+    items = list_quality_alerts()
+    return success_response({"items": items, "total": len(items)})

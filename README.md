@@ -86,16 +86,21 @@ platform-sim/
 ├── reference/
 │   └── omni-csx-v35/            # 归档参考代码（非主运行路径）
 │
+├── artifacts/                   # 运行产物
+│
 ├── data/
-│   └── extracted_user_queries/  # 用户查询模板数据
+│   ├── raw/                     # 原始数据
+│   ├── processed/               # 处理后数据
+│   └── staging/                 # 导入中间数据
 │
 ├── docs/                        # 文档
+│   ├── platform_specs/          # 平台规格说明
+│   └── state_machines/          # 平台状态机
+│
 ├── schemas/                     # JSON Schema
 ├── scripts/                     # 脚本工具
-└── platform_specs/              # 平台规格说明
+└── tests/                       # 集成测试
 ```
-
-> 迁移说明：过渡期保留了旧路径软链（如 `apps/official-sim-server`、`apps/ai-orchestrator`、`apps/domain-service`），新代码请优先使用上面的 canonical 路径。
 
 ---
 

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from pydantic import BaseModel
 
 from app.core.response import success_response
-from app.dependencies import get_integration_service, get_odoo_provider
+from app.dependencies import get_integration_service
 from app.services.integration_service import IntegrationService
 
 
@@ -68,10 +68,11 @@ async def get_inventory(
 @router.get("/order-audits")
 async def get_order_audits(
     order_id: Optional[str] = Query(None, description="Order ID to query"),
+    platform: Optional[str] = Query(None, description="Platform key for external order mapping"),
     service: IntegrationService = Depends(get_integration_service),
 ):
     try:
-        result = service.get_order_audits(order_id)
+        result = service.get_order_audits(order_id, platform=platform)
         return success_response({
             "audits": result,
             "total": len(result),
@@ -99,10 +100,11 @@ async def get_order_exceptions(
 @router.get("/fulfillment")
 async def get_fulfillment(
     order_id: Optional[str] = Query(None, description="Order ID to query"),
+    platform: Optional[str] = Query(None, description="Platform key for external order mapping"),
     service: IntegrationService = Depends(get_integration_service),
 ):
     try:
-        result = service.get_fulfillment(order_id)
+        result = service.get_fulfillment(order_id, platform=platform)
         return success_response({
             "fulfillments": result,
             "total": len(result),

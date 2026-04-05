@@ -1,6 +1,7 @@
 import json
+from copy import deepcopy
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 def _resolve_fixture_base_path() -> Path:
@@ -21,11 +22,23 @@ FIXTURE_BASE_PATH = _resolve_fixture_base_path()
 class FixtureLoader:
     _cache: Dict[str, Dict[str, Any]] = {}
 
+    @staticmethod
+    def _matches_order_identifier(order: Dict[str, Any], order_id: str) -> bool:
+        normalized_order_id = str(order_id)
+        return any(
+            str(candidate) == normalized_order_id
+            for candidate in (
+                order.get("order_id"),
+                order.get("external_order_id"),
+            )
+            if candidate not in (None, "")
+        )
+
     @classmethod
     def load(cls, platform: str, scenario_key: str, fixture_type: str = "success") -> Dict[str, Any]:
         cache_key = f"{platform}:{scenario_key}:{fixture_type}"
         if cache_key in cls._cache:
-            return cls._cache[cache_key]
+            return deepcopy(cls._cache[cache_key])
 
         fixture_path = FIXTURE_BASE_PATH / platform / fixture_type / f"{scenario_key}.json"
 
@@ -36,7 +49,7 @@ class FixtureLoader:
             fixture = json.load(f)
 
         cls._cache[cache_key] = fixture
-        return fixture
+        return deepcopy(fixture)
 
     @classmethod
     def get_response(cls, platform: str, scenario_key: str, fixture_type: str = "success") -> Dict[str, Any]:
@@ -71,33 +84,27 @@ class FixtureLoader:
 
     @classmethod
     def get_order(cls, platform: str, order_id: str) -> Optional[Dict[str, Any]]:
-        user_data = cls.get_user_by_order(platform, order_id)
-        if user_data:
-            for order in user_data.get("orders", []):
-                if order.get("order_id") == order_id:
-                    return order.get("official_response", order)
+        order = cls.find_user_order(platform, order_id)
+        if order:
+            return order.get("official_response", order)
         return None
 
     @classmethod
     def get_shipment(cls, platform: str, order_id: str) -> Optional[Dict[str, Any]]:
-        user_data = cls.get_user_by_order(platform, order_id)
-        if user_data:
-            for order in user_data.get("orders", []):
-                if order.get("order_id") == order_id:
-                    shipment = order.get("shipment", {})
-                    if shipment:
-                        return shipment.get("official_response", shipment)
+        order = cls.find_user_order(platform, order_id)
+        if order:
+            shipment = order.get("shipment", {})
+            if shipment:
+                return shipment.get("official_response", shipment)
         return None
 
     @classmethod
     def get_refund(cls, platform: str, order_id: str) -> Optional[Dict[str, Any]]:
-        user_data = cls.get_user_by_order(platform, order_id)
-        if user_data:
-            for order in user_data.get("orders", []):
-                if order.get("order_id") == order_id:
-                    refund = order.get("refund", {})
-                    if refund:
-                        return refund.get("official_response", refund)
+        order = cls.find_user_order(platform, order_id)
+        if order:
+            refund = order.get("refund", {})
+            if refund:
+                return refund.get("official_response", refund)
         return None
 
     @classmethod
@@ -118,7 +125,7 @@ class FixtureLoader:
     def load_user(cls, platform: str, user_id: str) -> Dict[str, Any]:
         cache_key = f"user:{platform}:{user_id}"
         if cache_key in cls._cache:
-            return cls._cache[cache_key]
+            return deepcopy(cls._cache[cache_key])
 
         user_path = FIXTURE_BASE_PATH / platform / "users" / f"{user_id}.json"
         if not user_path.exists():
@@ -128,13 +135,13 @@ class FixtureLoader:
             user_data = json.load(f)
 
         cls._cache[cache_key] = user_data
-        return user_data
+        return deepcopy(user_data)
 
     @classmethod
     def get_user_order(cls, platform: str, user_id: str, order_id: str) -> Optional[Dict[str, Any]]:
         user_data = cls.load_user(platform, user_id)
         for order in user_data.get("orders", []):
-            if order.get("order_id") == order_id:
+            if cls._matches_order_identifier(order, order_id):
                 return order
         return None
 
@@ -148,8 +155,17 @@ class FixtureLoader:
         for user_id in cls.list_users(platform):
             user_data = cls.load_user(platform, user_id)
             for order in user_data.get("orders", []):
-                if order.get("order_id") == order_id:
+                if cls._matches_order_identifier(order, order_id):
                     return user_data
+        return None
+
+    @classmethod
+    def find_user_order(cls, platform: str, order_id: str) -> Optional[Dict[str, Any]]:
+        for user_id in cls.list_users(platform):
+            user_data = cls.load_user(platform, user_id)
+            for order in user_data.get("orders", []):
+                if cls._matches_order_identifier(order, order_id):
+                    return deepcopy(order)
         return None
 
     @classmethod

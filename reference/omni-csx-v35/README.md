@@ -685,10 +685,23 @@ OPENAI_MODEL=your_model_name
 │   ├── docker/
 │   ├── migrations/
 │   └── scripts/
-├── migrations/
+├── migrations/                 # 轻量迁移入口（run_migrations.sh 默认目录）
 ├── scripts/
+│   ├── run_migrations.sh
+│   ├── cleanup_snapshots.py
+│   └── maintenance/            # 维护脚本（根目录散落脚本已归位）
 ├── docs/
+│   ├── api/
+│   ├── architecture/
+│   ├── prd/
+│   └── archive/
 ├── tests/
+│   ├── domain_service/
+│   ├── integration/
+│   ├── knowledge_service/
+│   ├── mock_platform/
+│   └── legacy/                 # 历史/一次性测试
+├── STRUCTURE.md
 └── .ai/
     ├── v1/
     ├── v2/

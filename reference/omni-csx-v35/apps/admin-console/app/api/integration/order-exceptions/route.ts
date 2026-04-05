@@ -16,7 +16,8 @@ export async function GET(request: Request) {
       const text = await response.text();
       return NextResponse.json({ detail: text || `HTTP ${response.status}` }, { status: response.status });
     }
-    return NextResponse.json(data, { status: response.status });
+    const items = Array.isArray(data?.data?.exceptions) ? data.data.exceptions : [];
+    return NextResponse.json(items, { status: response.status });
   } catch (error) {
     return NextResponse.json({ detail: "Failed to connect to order exceptions service" }, { status: 500 });
   }

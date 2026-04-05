@@ -2,9 +2,13 @@ import pytest
 import sys
 from pathlib import Path
 
-project_root = Path('/home/kkk/Project/platform-sim')
-sys.path.insert(0, str(project_root / 'apps' / 'domain-service'))
-sys.path.insert(0, str(project_root / 'providers'))
+project_root = Path(__file__).resolve().parents[2]
+domain_service_path = str(project_root / "apps" / "core" / "domain-service")
+providers_path = str(project_root / "providers")
+if domain_service_path not in sys.path:
+    sys.path.append(domain_service_path)
+if providers_path not in sys.path:
+    sys.path.append(providers_path)
 
 from providers.taobao.provider import TaobaoProvider
 from providers.douyin_shop.provider import DouyinShopProvider

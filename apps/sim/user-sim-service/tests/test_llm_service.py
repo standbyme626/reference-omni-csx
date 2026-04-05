@@ -3,7 +3,9 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 
-sys.path.insert(0, '/home/kkk/Project/platform-sim/apps/ai-orchestrator')
+USER_SIM_ROOT = Path(__file__).resolve().parents[1]
+if str(USER_SIM_ROOT) not in sys.path:
+    sys.path.append(str(USER_SIM_ROOT))
 
 from services.llm_config import LLMConfig
 from services.llm_service import LLMService

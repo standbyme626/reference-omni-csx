@@ -2,13 +2,26 @@
 Olist 数据集中文转换脚本
 将葡萄牙语数据转换为中文
 """
-import pandas as pd
 import os
+from pathlib import Path
 
-DATA_DIR = "/home/kkk/Project/platform-sim/data/olist"
-OUTPUT_DIR = "/home/kkk/Project/platform-sim/data/olist_cn"
+import pandas as pd
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = Path(
+    os.getenv(
+        "PLATFORM_SIM_DATA_OLIST",
+        str(REPO_ROOT / "data" / "raw" / "olist"),
+    )
+)
+OUTPUT_DIR = Path(
+    os.getenv(
+        "PLATFORM_SIM_DATA_OLIST_CN",
+        str(REPO_ROOT / "data" / "processed" / "olist_cn"),
+    )
+)
+
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PRODUCT_CATEGORY_CN = {
     "health_beauty": "健康美容",

@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { AnalyticsSummary, getAnalyticsSummaries } from "../lib/analytics";
 
 export default function AnalyticsPage() {
-  const [summaries, setSummaries] = useState<AnalyticsSummary[]>([]);
+  const [summary, setSummary] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,8 +16,18 @@ export default function AnalyticsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getAnalyticsSummaries();
-      setSummaries(data);
+      const response = await fetch("/api/analytics/summaries");
+      if (!response.ok) {
+        throw new Error("Failed to fetch analytics");
+      }
+      const data = await response.json();
+      const payload = data?.data ?? data;
+      setSummary({
+        total_conversations: payload?.total_conversations || 0,
+        active_conversations: payload?.active_conversations || 0,
+        pending_followups: payload?.pending_followups || 0,
+        risk_alerts: payload?.risk_alerts || 0,
+      });
     } catch (err) {
       setError("统计数据加载失败");
       console.error("Failed to fetch analytics summaries:", err);
@@ -73,6 +82,15 @@ export default function AnalyticsPage() {
     );
   }
 
+  const stats = summary
+    ? [
+        { label: "总会话数", value: summary.total_conversations, color: "text-blue-600" },
+        { label: "活跃会话", value: summary.active_conversations, color: "text-green-600" },
+        { label: "待跟进任务", value: summary.pending_followups, color: "text-yellow-600" },
+        { label: "风险预警", value: summary.risk_alerts, color: "text-red-600" },
+      ]
+    : [];
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
@@ -89,60 +107,18 @@ export default function AnalyticsPage() {
         </div>
       </header>
       <main className="max-w-7xl mx-auto py-6 px-4">
-        {summaries.length === 0 ? (
+        {stats.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <p className="text-gray-500">暂无统计数据</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    日期
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    建议生成
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    建议采纳
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    跟进执行
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    跟进关闭
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    活动完成
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {summaries.map((summary) => (
-                  <tr key={summary.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {summary.stat_date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {summary.recommendation_created_count}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {summary.recommendation_accepted_count}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {summary.followup_executed_count}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {summary.followup_closed_count}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {summary.operation_campaign_completed_count}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {stats.map((item) => (
+              <div key={item.label} className="bg-white rounded-lg shadow p-6">
+                <p className="text-sm text-gray-500">{item.label}</p>
+                <p className={`text-3xl font-semibold ${item.color}`}>{item.value}</p>
+              </div>
+            ))}
           </div>
         )}
       </main>

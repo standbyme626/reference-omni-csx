@@ -14,7 +14,11 @@ export async function GET(request: Request) {
     });
     
     const data = await response.json();
-    return NextResponse.json(data);
+    const payload = data?.data ?? data;
+    return NextResponse.json(
+      { items: payload?.items ?? [], total: payload?.total ?? 0 },
+      { status: response.status }
+    );
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch audit logs" }, { status: 500 });
   }
@@ -32,7 +36,7 @@ export async function POST(request: Request) {
     });
     
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data?.data ?? data, { status: response.status });
   } catch (error) {
     return NextResponse.json({ error: "Failed to create audit log" }, { status: 500 });
   }

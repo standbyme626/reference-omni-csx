@@ -2,7 +2,9 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, '/home/kkk/Project/platform-sim/apps/ai-orchestrator')
+USER_SIM_ROOT = Path(__file__).resolve().parents[1]
+if str(USER_SIM_ROOT) not in sys.path:
+    sys.path.append(str(USER_SIM_ROOT))
 
 from nodes.state import OrchestratorState, AgentStatus, OrderQuery, SuggestionRequest
 from nodes.base import create_initial_state, start_node, error_node, end_node

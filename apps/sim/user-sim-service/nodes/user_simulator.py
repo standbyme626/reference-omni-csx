@@ -272,14 +272,21 @@ class UserSimulator:
         self,
         platform: str,
         user_id: Optional[str] = None,
+        order_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
         override_emotion: Optional[str] = None,
         override_intent: Optional[str] = None,
     ) -> UserSimulatorOutput:
         state = UserSimulatorState(platform=platform)
 
+        bound_user = None
+        if order_id:
+            bound_user = FixtureLoader.get_user_by_order(platform, order_id)
+
         if user_id:
             state.selected_user_id = user_id
+        elif bound_user and bound_user.get("user_id"):
+            state.selected_user_id = str(bound_user.get("user_id"))
         else:
             users = FixtureLoader.list_users(platform)
             if not users:
@@ -292,8 +299,17 @@ class UserSimulator:
         if not orders:
             raise ValueError(f"No orders found for user: {state.selected_user_id}")
 
-        selected_order = random.choice(orders)
-        state.selected_order_id = selected_order.get("order_id")
+        selected_order = None
+        if order_id:
+            selected_order = next(
+                (item for item in orders if item.get("order_id") == order_id),
+                None,
+            )
+            state.selected_order_id = order_id
+
+        if selected_order is None and state.selected_order_id is None:
+            selected_order = random.choice(orders)
+            state.selected_order_id = selected_order.get("order_id")
 
         system_prompt = """你是用户模拟器。你需要：
 1. 先调用工具获取订单信息

@@ -13,8 +13,10 @@
 - `apps/sim/*`: simulation services
 - `apps/frontend/*`: frontend applications
 - `providers/*`: platform provider layer
+- `artifacts/*`: generated runtime/build artifacts
+- `data/raw|processed|staging/*`: dataset lifecycle
 - `reference/*`: archived/legacy/reference codebases
-- `docs/*`: architecture and delivery docs
+- `docs/*`: architecture, specs, and delivery docs
 
 ## Simulation Service Split
 
@@ -24,9 +26,4 @@
 ## Frontend Transition
 
 - `apps/frontend/conversation-studio-web` is the canonical frontend location.
-- Current page asset is linked to `apps/sim/user-sim-service/static/conversation_studio.html` for transition compatibility.
-
-## Compatibility Policy
-
-During transition, legacy paths may be kept as symlinks.
-This avoids breakage while moving code and CI scripts to canonical paths.
+- Current page content is aligned with `apps/sim/user-sim-service/static/conversation_studio.html` for transition compatibility.

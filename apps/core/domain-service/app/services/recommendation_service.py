@@ -1,5 +1,5 @@
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from app.services.business_context_service import BusinessContextService
 
@@ -15,8 +15,13 @@ class RecommendationService:
         biz_type: str = "order",
         intent: Optional[str] = None,
         max_candidates: int = 5,
+        official_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        context = self.context_service.get_context(platform, biz_id)
+        context = self.context_service.get_context(
+            platform,
+            biz_id,
+            official_run_id=official_run_id,
+        )
         
         candidates = self._generate_replies(context, intent)
         
@@ -32,8 +37,13 @@ class RecommendationService:
         biz_id: str,
         biz_type: str = "order",
         max_candidates: int = 10,
+        official_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        context = self.context_service.get_context(platform, biz_id)
+        context = self.context_service.get_context(
+            platform,
+            biz_id,
+            official_run_id=official_run_id,
+        )
         
         candidates = self._generate_actions(context)
         
@@ -49,8 +59,13 @@ class RecommendationService:
         biz_id: str,
         biz_type: str = "order",
         reason: Optional[str] = None,
+        official_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        context = self.context_service.get_context(platform, biz_id)
+        context = self.context_service.get_context(
+            platform,
+            biz_id,
+            official_run_id=official_run_id,
+        )
         
         return self._evaluate_escalation(context, reason)
     
@@ -60,12 +75,14 @@ class RecommendationService:
         intent: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         candidates = []
+        normalized_intent = (intent or "").strip().lower()
+        refund_intents = {"ask_refund", "refund_progress", "query_refund"}
         
         order_snapshot = context.get("order_snapshot", {})
         after_sale_snapshot = context.get("after_sale_snapshot")
         risk_flags = context.get("risk_flags", {})
         
-        if intent == "query_order":
+        if normalized_intent in {"query_order", "ask_order_status", "order_status", "ask_order"}:
             candidates.append({
                 "reply_type": "order_status",
                 "content": f"您好，您的订单状态为：{order_snapshot.get('status', '未知')}。如有其他问题请随时联系。",
@@ -74,7 +91,7 @@ class RecommendationService:
                 "tags": ["order", "status"],
             })
         
-        if intent == "query_shipment":
+        if normalized_intent in {"query_shipment", "ask_shipment", "shipment_status"}:
             shipment_snapshot = context.get("shipment_snapshot", {})
             if shipment_snapshot.get("tracking_no"):
                 candidates.append({
@@ -85,10 +102,12 @@ class RecommendationService:
                     "tags": ["shipment", "tracking"],
                 })
         
-        if after_sale_snapshot:
+        if normalized_intent in refund_intents or (not normalized_intent and after_sale_snapshot):
+            after_sale_data = after_sale_snapshot or {}
+            after_sale_status = after_sale_data.get("status_text") or after_sale_data.get("status", "未知")
             candidates.append({
                 "reply_type": "after_sale_status",
-                "content": f"您好，您的售后申请状态为：{after_sale_snapshot.get('status', '未知')}，我们正在处理中。",
+                "content": f"您好，您的售后申请状态为：{after_sale_status}，我们正在处理中。",
                 "confidence": 0.85,
                 "source": "rule",
                 "tags": ["after_sale", "status"],

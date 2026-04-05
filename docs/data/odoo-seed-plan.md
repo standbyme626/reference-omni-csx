@@ -79,6 +79,26 @@ order_0001
 | partner_id | customer_id | 客户 External ID |
 | date_order | order_date | 订单日期 |
 | state | status | 订单状态 |
+| client_order_ref | source_order_id | 原始外部订单参考 |
+
+### 显式映射资产
+
+除 Odoo 自然字段外，当前还补充一条显式映射资产链，用于把仿真平台订单号稳定挂到导入后的 Odoo 单据：
+
+1. `convert_to_odoo.py` 生成：
+   - `sale.order.csv`
+   - `platform_order_link_seed.json`
+2. `import_to_odoo.py` 导入后生成：
+   - `data/runtime/odoo_order_links.json`
+   - 如目标环境已经存在旧导入的 `sale.order`，可额外执行：
+     - `python scripts/data_tools/import_to_odoo.py --backfill-existing-orders --sale-order-limit 500`
+     - 作用：回填现有 `sale.order.client_order_ref`，并为映射订单补建最小 `stock.picking`
+
+说明：
+
+- `platform_order_link_seed.json` 不是官方真相，也不是 Odoo 原生字段，而是“平台仿真订单号 -> Odoo 导入订单”的显式 seed。
+- `data/runtime/odoo_order_links.json` 则是导入完成后、带有真实 Odoo 单据 ID / 单据名的运行态映射。
+- 这样做的目的不是伪装成天然主数据，而是让平台订单号和 ERP 单据之间的关系可追溯、可复用、可重启持久化。
 
 ## 使用方法
 
@@ -86,7 +106,8 @@ order_0001
 
 ```bash
 cd scripts/erp_seed_builder
-python build_all.py --output-dir output/odoo_seed
+python build_all.py
+# 可选：python build_all.py --output-dir ../../artifacts/odoo_seed
 ```
 
 ### 导入 Odoo

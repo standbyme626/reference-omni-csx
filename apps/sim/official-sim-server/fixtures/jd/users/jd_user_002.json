@@ -7,6 +7,7 @@
   "orders": [
     {
       "order_id": "JD_ORDER_004",
+      "external_order_id": "98765432101232",
       "status": "delivered",
       "status_text": "已签收",
       "amount": "1299.00",
@@ -40,6 +41,7 @@
     },
     {
       "order_id": "JD_ORDER_005",
+      "external_order_id": "98765432101233",
       "status": "completed",
       "status_text": "已完成",
       "amount": "88.50",
@@ -71,6 +73,7 @@
     },
     {
       "order_id": "JD_ORDER_006",
+      "external_order_id": "98765432101235",
       "status": "refunding",
       "status_text": "退款中",
       "amount": "399.00",

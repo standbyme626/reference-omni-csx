@@ -1,11 +1,12 @@
-from typing import Dict, Any, List, Optional, Literal
-from pydantic import BaseModel, Field
-from enum import Enum
 import os
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from nodes.conversation import ConversationContext, EmotionType, IntentType
-from nodes.reply import UnifiedReplyAdapter, ReplySource
+from nodes.reply import UnifiedReplyAdapter
 from nodes.user_simulator import UserSimulator
+from pydantic import BaseModel, Field
+from services.domain_service_client import DomainServiceClient, DomainServiceClientError
 
 
 class StudioStatus(str, Enum):
@@ -47,17 +48,21 @@ class ConversationStudioGraph:
     def __init__(
         self,
         use_official_sim: bool = False,
+        allow_stub_fallback: bool = False,
         official_sim_url: str = "",
+        domain_service_url: str = "",
         platform: str = "taobao"
     ):
         self.user_simulator = UserSimulator()
         resolved_official_sim_url = (
             official_sim_url
             or os.getenv("OFFICIAL_SIM_BASE_URL")
-            or "http://localhost:8000"
+            or "http://localhost:8001"
         )
+        self.domain_service_client = DomainServiceClient(base_url=domain_service_url)
         self.reply_adapter = UnifiedReplyAdapter(
             use_official_sim=use_official_sim,
+            allow_stub_fallback=allow_stub_fallback,
             official_sim_base_url=resolved_official_sim_url,
             platform=platform
         )
@@ -216,8 +221,20 @@ class ConversationStudioGraph:
         result = self.user_simulator.generate(
             platform=context.platform,
             user_id=context.user_id,
+            order_id=context.order_id,
             conversation_id=context.conversation_id,
+            override_intent=override_intent or intent,
+            override_emotion=override_emotion or emotion,
         )
+
+        # Once a run is bound to a user/order, keep that business key stable.
+        # This avoids later turns drifting onto another fixture order.
+        selected_user_id = getattr(result.decision, "selected_user_id", None)
+        selected_order_id = getattr(result.decision, "selected_order_id", None)
+        if selected_user_id and not context.user_id:
+            context.user_id = selected_user_id
+        if selected_order_id and not context.order_id:
+            context.order_id = selected_order_id
 
         user_message = result.user_message
         context.add_user_message(
@@ -245,19 +262,24 @@ class ConversationStudioGraph:
         context: ConversationContext,
         user_message: str,
     ) -> Dict[str, Any]:
-        reply_context = {
-            "platform": context.platform,
-            "user_id": context.user_id,
-            "order_id": context.order_id,
-            "intent": context.intent.value if context.intent else "default",
-            "emotion": context.emotion.value,
-        }
+        intent = context.intent.value if context.intent else "default"
+        reply_result = self._get_domain_service_reply(context, intent)
 
-        reply_result = self.reply_adapter.get_reply(
-            run_id=context.run_id,
-            user_message=user_message,
-            context=reply_context,
-        )
+        if not reply_result:
+            reply_context = {
+                "platform": context.platform,
+                "user_id": context.user_id,
+                "order_id": context.order_id,
+                "intent": intent,
+                "emotion": context.emotion.value,
+                "official_run_id": context.official_run_id,
+            }
+
+            reply_result = self.reply_adapter.get_reply(
+                run_id=context.run_id,
+                user_message=user_message,
+                context=reply_context,
+            )
 
         context.add_reply_message(
             content=reply_result.get("text", ""),
@@ -265,6 +287,46 @@ class ConversationStudioGraph:
         )
 
         return reply_result
+
+    def _get_domain_service_reply(
+        self,
+        context: ConversationContext,
+        intent: str,
+    ) -> Optional[Dict[str, Any]]:
+        if not context.order_id:
+            return None
+
+        try:
+            recommendation = self.domain_service_client.get_reply_recommendation(
+                platform=context.platform,
+                biz_id=context.order_id,
+                biz_type="order",
+                intent=intent,
+                max_candidates=5,
+                official_run_id=context.official_run_id,
+            )
+        except DomainServiceClientError:
+            return None
+
+        candidates = recommendation.get("candidates", [])
+        if not isinstance(candidates, list) or not candidates:
+            return None
+
+        first = candidates[0] if isinstance(candidates[0], dict) else {}
+        reply_text = str(first.get("content", "")).strip()
+        if not reply_text:
+            return None
+
+        return {
+            "text": reply_text,
+            "source": "domain-service",
+            "run_id": context.run_id,
+            "platform": context.platform,
+            "order_id": context.order_id,
+            "official_run_id": context.official_run_id,
+            "context_id": recommendation.get("context_id"),
+            "candidates": candidates,
+        }
 
     def run(
         self,
@@ -274,7 +336,10 @@ class ConversationStudioGraph:
         max_turns: int = 3,
         emotion: str = "calm",
         use_official_sim: bool = False,
+        allow_stub_fallback: bool = False,
     ) -> ConversationContext:
+        self.reply_adapter.switch_mode(use_official_sim)
+        self.reply_adapter.set_allow_stub_fallback(allow_stub_fallback)
         context = self.create_run(
             platform=platform,
             user_id=user_id,

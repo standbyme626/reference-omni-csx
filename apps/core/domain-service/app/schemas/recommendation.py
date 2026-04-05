@@ -6,6 +6,7 @@ class ReplyRecommendationRequest(BaseModel):
     platform: str
     biz_id: str
     biz_type: str = "order"
+    official_run_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
     intent: Optional[str] = None
     max_candidates: int = 5
@@ -29,6 +30,7 @@ class ActionRecommendationRequest(BaseModel):
     platform: str
     biz_id: str
     biz_type: str = "order"
+    official_run_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
     max_candidates: int = 10
 
@@ -51,6 +53,7 @@ class EscalationRecommendationRequest(BaseModel):
     platform: str
     biz_id: str
     biz_type: str = "order"
+    official_run_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
     reason: Optional[str] = None
 

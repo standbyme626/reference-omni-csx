@@ -1,10 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
 from pydantic import BaseModel
 
 from app.core.response import success_response
-from app.adapters.registry import PlatformRegistry
-from app.services.platform_gateway_service import PlatformGatewayService
+from app.dependencies import get_shipment_domain_service
 from app.services.shipment_domain_service import ShipmentDomainService
 
 router = APIRouter()
@@ -14,30 +13,28 @@ class BatchGetShipmentsRequest(BaseModel):
     requests: List[Dict[str, str]]
 
 
-def get_shipment_service() -> ShipmentDomainService:
-    registry = PlatformRegistry()
-    gateway = PlatformGatewayService(registry)
-    return ShipmentDomainService(gateway)
-
-
 @router.get("/{platform}/{order_id}")
 async def get_shipment(
     platform: str,
     order_id: str,
+    official_run_id: str | None = None,
+    service: ShipmentDomainService = Depends(get_shipment_domain_service),
 ):
     try:
-        service = get_shipment_service()
-        shipment = service.get_shipment(platform, order_id)
+        shipment = service.get_shipment(platform, order_id, official_run_id=official_run_id)
         return success_response({"shipment": shipment})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        status_code = 404 if "not found" in str(e).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Shipment not found for order: {order_id}")
 
 
 @router.post("/batch-get")
-async def batch_get_shipments(request: BatchGetShipmentsRequest):
-    service = get_shipment_service()
+async def batch_get_shipments(
+    request: BatchGetShipmentsRequest,
+    service: ShipmentDomainService = Depends(get_shipment_domain_service),
+):
     result = service.batch_get_shipments(request.requests)
     return success_response(result)
 
@@ -46,10 +43,11 @@ async def batch_get_shipments(request: BatchGetShipmentsRequest):
 async def get_shipment_nodes(
     platform: str,
     order_id: str,
+    official_run_id: str | None = None,
+    service: ShipmentDomainService = Depends(get_shipment_domain_service),
 ):
     try:
-        service = get_shipment_service()
-        nodes = service.get_shipment_nodes(platform, order_id)
+        nodes = service.get_shipment_nodes(platform, order_id, official_run_id=official_run_id)
         return success_response({
             "order_id": order_id,
             "platform": platform,
