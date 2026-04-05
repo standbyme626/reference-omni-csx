@@ -1,3 +1,4 @@
+"""Recommendation routes — slim pattern."""
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 from pydantic import BaseModel
@@ -39,72 +40,35 @@ class EscalationRecommendationRequest(BaseModel):
 
 @router.post("/reply")
 async def get_reply_recommendations(request: ReplyRecommendationRequest):
-    try:
-        service = RecommendationService(get_business_context_service())
-        result = service.get_reply_recommendations(
-            request.platform,
-            request.biz_id,
-            request.biz_type,
-            request.intent,
-            request.max_candidates,
-            official_run_id=request.official_run_id,
-        )
-        logger.info(
-            "reply recommendation generated official_run_id=%s platform=%s biz_id=%s biz_type=%s",
-            request.official_run_id,
-            request.platform,
-            request.biz_id,
-            request.biz_type,
-        )
-        return success_response(result)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    service = RecommendationService(get_business_context_service())
+    result = service.get_reply_recommendations(
+        request.platform, request.biz_id, request.biz_type,
+        request.intent, request.max_candidates, official_run_id=request.official_run_id,
+    )
+    logger.info("reply recommendation generated platform=%s biz_id=%s biz_type=%s", request.platform, request.biz_id, request.biz_type)
+    return success_response(result)
 
 
 @router.post("/action")
 async def get_action_recommendations(request: ActionRecommendationRequest):
-    try:
-        service = RecommendationService(get_business_context_service())
-        result = service.get_action_recommendations(
-            request.platform,
-            request.biz_id,
-            request.biz_type,
-            request.max_candidates,
-            official_run_id=request.official_run_id,
-        )
-        logger.info(
-            "action recommendation generated official_run_id=%s platform=%s biz_id=%s biz_type=%s",
-            request.official_run_id,
-            request.platform,
-            request.biz_id,
-            request.biz_type,
-        )
-        return success_response(result)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    service = RecommendationService(get_business_context_service())
+    result = service.get_action_recommendations(
+        request.platform, request.biz_id, request.biz_type,
+        request.max_candidates, official_run_id=request.official_run_id,
+    )
+    logger.info("action recommendation generated platform=%s biz_id=%s biz_type=%s", request.platform, request.biz_id, request.biz_type)
+    return success_response(result)
 
 
 @router.post("/escalation")
 async def get_escalation_recommendation(request: EscalationRecommendationRequest):
-    try:
-        service = RecommendationService(get_business_context_service())
-        result = service.get_escalation_recommendation(
-            request.platform,
-            request.biz_id,
-            request.biz_type,
-            request.reason,
-            official_run_id=request.official_run_id,
-        )
-        logger.info(
-            "escalation recommendation generated official_run_id=%s platform=%s biz_id=%s biz_type=%s",
-            request.official_run_id,
-            request.platform,
-            request.biz_id,
-            request.biz_type,
-        )
-        return success_response(result)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    service = RecommendationService(get_business_context_service())
+    result = service.get_escalation_recommendation(
+        request.platform, request.biz_id, request.biz_type,
+        request.reason, official_run_id=request.official_run_id,
+    )
+    logger.info("escalation recommendation generated platform=%s biz_id=%s biz_type=%s", request.platform, request.biz_id, request.biz_type)
+    return success_response(result)
 
 
 @router.post("/{recommendation_id}/accept")

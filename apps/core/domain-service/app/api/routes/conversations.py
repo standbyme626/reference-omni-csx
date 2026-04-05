@@ -1,3 +1,4 @@
+"""Conversation routes — slim: params + delegate to service + return."""
 from typing import Any, Dict, Optional
 
 from app.core.response import success_response
@@ -29,7 +30,6 @@ router = APIRouter()
 
 
 def _find_conv_in_search(platform: str, conv_id: str):
-    """Helper to find a conversation by ID from the mock search data."""
     svc = get_conversation_service()
     search = svc.search_conversations("all", {}, skip=0, limit=100)
     for conv in search["items"]:
@@ -39,90 +39,54 @@ def _find_conv_in_search(platform: str, conv_id: str):
 
 
 # ====================================================================
-# Agent-console compatible routes (no envelope, flat JSON)
+# Agent-console routes (no envelope, flat JSON)
 # ====================================================================
-# These serve the Next.js agent-console frontend directly.
 
 @router.get("/{conv_id}")
 async def agent_console_get_conversation(conv_id: str, official_run_id: Optional[str] = None):
-    """GET /api/conversations/{conv_id} - Agent console conversation detail."""
     conv = _find_conv_in_search("all", conv_id)
     if not conv:
         return {}
-
-    platform = conv["platform"]
     svc = get_conversation_service()
-    return svc.get_conversation(
-        platform,
-        conv_id,
-        official_run_id=official_run_id or conv.get("official_run_id"),
-    )
+    return svc.get_conversation(platform=conv["platform"], conversation_id=conv_id,
+                                official_run_id=official_run_id or conv.get("official_run_id"))
 
 
 @router.get("/{conv_id}/messages")
-async def agent_console_get_messages(
-    conv_id: str,
-    skip: int = 0,
-    limit: int = 50,
-    official_run_id: Optional[str] = None,
-):
-    """GET /api/conversations/{conv_id}/messages - Messages for a conversation."""
+async def agent_console_get_messages(conv_id: str, skip: int = 0, limit: int = 50, official_run_id: Optional[str] = None):
     conv = _find_conv_in_search("all", conv_id)
     platform = conv["platform"] if conv else "wecom_kf"
-
     svc = get_conversation_service()
-    result = svc.get_conversation_messages(
-        platform,
-        conv_id,
-        limit=limit,
-        official_run_id=official_run_id or (conv or {}).get("official_run_id"),
-    )
+    result = svc.get_conversation_messages(platform, conv_id, limit=limit,
+                                           official_run_id=official_run_id or (conv or {}).get("official_run_id"))
     messages = result.get("messages", [])
-    formatted = []
-    for msg in messages:
-        direction = "inbound" if msg.get("sender_type") == "customer" else "outbound"
-        formatted.append({
-            "id": msg["msg_id"],
-            "direction": direction,
-            "content": msg["content"],
-            "sender": msg.get("sender_type", "customer"),
-            "create_time": msg.get("created_at", ""),
-        })
-    return {"total": len(formatted), "items": formatted}
+    return {"total": len(messages), "items": [{
+        "id": m["msg_id"], "direction": "inbound" if m.get("sender_type") == "customer" else "outbound",
+        "content": m["content"], "sender": m.get("sender_type", "customer"),
+        "create_time": m.get("created_at", ""),
+    } for m in messages]}
 
 
 @router.post("/{conv_id}/assign")
 async def agent_console_assign(
-    conv_id: str,
-    request: AssignRequest,
+    conv_id: str, request: AssignRequest,
     service: ConversationService = Depends(get_conversation_service),
 ):
-    """POST /api/conversations/{conv_id}/assign - Assign an agent to a conversation."""
     conv = _find_conv_in_search("all", conv_id)
     platform = conv["platform"] if conv else "wecom_kf"
     service.state_transition(platform, conv_id, "assigned")
-    return {
-        "status": "ok",
-        "conversation_id": conv_id,
-        "assigned_agent": request.agent_id,
-    }
+    return {"status": "ok", "conversation_id": conv_id, "assigned_agent": request.agent_id}
 
 
 @router.post("/{conv_id}/handoff")
 async def agent_console_handoff(
-    conv_id: str,
-    request: HandoffRequest,
+    conv_id: str, request: HandoffRequest,
     service: ConversationService = Depends(get_conversation_service),
 ):
-    """POST /api/conversations/{conv_id}/handoff - Handoff a conversation to another agent."""
     conv = _find_conv_in_search("all", conv_id)
     platform = conv["platform"] if conv else "wecom_kf"
     service.state_transition(platform, conv_id, "handed_off")
-    return {
-        "status": "ok",
-        "conversation_id": conv_id,
-        "handoff_to": request.target_agent,
-    }
+    return {"status": "ok", "conversation_id": conv_id, "handoff_to": request.target_agent}
 
 
 @router.get("/{conv_id}/recommendations")
@@ -133,19 +97,16 @@ async def agent_console_get_recommendations(conv_id: str):
 
 
 # ====================================================================
-# Existing routes with envelope wrapper
+# Standard routes (envelope wrapper)
 # ====================================================================
 
 @router.get("/")
 async def list_conversations(
-    platform: Optional[str] = None,
-    status: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+    platform: Optional[str] = None, status: Optional[str] = None, skip: int = 0, limit: int = 100,
     service: ConversationService = Depends(get_conversation_service),
 ):
     try:
-        query = {}
+        query: Dict[str, Any] = {}
         if platform:
             query["platform"] = platform
         if status:
@@ -158,43 +119,20 @@ async def list_conversations(
 
 @router.get("/{platform}/{conversation_id}")
 async def get_conversation(
-    platform: str,
-    conversation_id: str,
-    official_run_id: Optional[str] = None,
+    platform: str, conversation_id: str, official_run_id: Optional[str] = None,
     service: ConversationService = Depends(get_conversation_service),
 ):
-    try:
-        conversation = service.get_conversation(
-            platform,
-            conversation_id,
-            official_run_id=official_run_id,
-        )
-        return success_response({"conversation": conversation})
-    except ValueError as e:
-        status_code = 404 if "not found" in str(e).lower() else 400
-        raise HTTPException(status_code=status_code, detail=str(e))
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Conversation not found: {conversation_id}")
+    conversation = service.get_conversation(platform, conversation_id, official_run_id=official_run_id)
+    return success_response({"conversation": conversation})
 
 
 @router.get("/{platform}/{conversation_id}/messages")
 async def get_conversation_messages(
-    platform: str,
-    conversation_id: str,
-    limit: int = 100,
-    official_run_id: Optional[str] = None,
+    platform: str, conversation_id: str, limit: int = 100, official_run_id: Optional[str] = None,
     service: ConversationService = Depends(get_conversation_service),
 ):
-    try:
-        result = service.get_conversation_messages(
-            platform,
-            conversation_id,
-            limit,
-            official_run_id=official_run_id,
-        )
-        return success_response(result)
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Conversation not found: {conversation_id}")
+    result = service.get_conversation_messages(platform, conversation_id, limit, official_run_id=official_run_id)
+    return success_response(result)
 
 
 @router.post("/search")
@@ -208,13 +146,8 @@ async def search_conversations(
 
 @router.post("/{platform}/{conversation_id}/state-transition")
 async def state_transition(
-    platform: str,
-    conversation_id: str,
-    request: StateTransitionRequest,
+    platform: str, conversation_id: str, request: StateTransitionRequest,
     service: ConversationService = Depends(get_conversation_service),
 ):
-    try:
-        result = service.state_transition(platform, conversation_id, request.target_state)
-        return success_response(result)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    result = service.state_transition(platform, conversation_id, request.target_state)
+    return success_response(result)
