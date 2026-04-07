@@ -8,8 +8,8 @@ from app.models import (
     Shipment, ShipmentNode, AfterSale, AfterSaleStatus,
 )
 from app.adapters.utils import (
-    parse_datetime, parse_shipment_status, parse_after_sale_status,
-    SHIPMENT_STATUS_TEXT, AFTER_SALE_STATUS_TEXT,
+    parse_datetime, parse_order_status, parse_shipment_status, parse_after_sale_status,
+    STATUS_TEXT, SHIPMENT_STATUS_TEXT, AFTER_SALE_STATUS_TEXT,
 )
 
 XHS_ORDER_STATUS_MAP: dict[str, OrderStatus] = {

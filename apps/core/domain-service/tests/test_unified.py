@@ -1,12 +1,9 @@
 import pytest
-import sys
-from pathlib import Path
 from datetime import datetime
 
-DOMAIN_SERVICE_ROOT = Path(__file__).resolve().parents[1]
-if str(DOMAIN_SERVICE_ROOT) not in sys.path:
-    sys.path.append(str(DOMAIN_SERVICE_ROOT))
-
+from app.adapters.douyin import DouyinOrderAdapter
+from app.adapters.taobao import TaobaoOrderAdapter
+from app.adapters.wecom_kf import WeComKfConversationAdapter
 from app.models.unified import (
     UnifiedOrder,
     UnifiedAddress,
@@ -17,7 +14,6 @@ from app.models.unified import (
     OrderStatus,
     RefundStatus,
 )
-from adapters.platform_adapter import TaobaoAdapter, DouyinShopAdapter, WecomKfAdapter
 
 
 def test_unified_address_model():
@@ -65,14 +61,14 @@ def test_taobao_adapter_to_unified():
     platform_data = {
         "trade": {
             "tid": "TB_ORDER_001",
-            "status": "wait_ship",
+            "status": "WAIT_SELLER_SEND_GOODS",
             "total_fee": "99.99",
             "payment": "99.99",
             "receiver_name": "张三",
             "receiver_phone": "138****8000",
             "receiver_address": "杭州",
-            "created": "2026-03-01 10:00:00",
-            "modified": "2026-03-29 12:00:00",
+            "created": "2026-03-01T10:00:00",
+            "modified": "2026-03-29T12:00:00",
         },
         "orders": {
             "order": [
@@ -85,54 +81,58 @@ def test_taobao_adapter_to_unified():
             ]
         },
     }
-    unified = TaobaoAdapter.to_unified_order(platform_data)
+
+    adapter = TaobaoOrderAdapter()
+    unified = adapter.to_unified_order(platform_data)
     assert unified.order_id == "TB_ORDER_001"
     assert unified.platform == Platform.TAOBAO
     assert unified.status == OrderStatus.WAIT_SHIP
     assert len(unified.products) == 1
 
 
-def test_taobao_adapter_from_unified():
-    now = datetime.now()
-    addr = UnifiedAddress(name="张三", phone="138****8000", address="杭州")
-    product = UnifiedProduct(product_id="P001", name="商品", price="99.99")
-    order = UnifiedOrder(
-        order_id="TB_ORDER_001",
-        platform=Platform.TAOBAO,
-        status=OrderStatus.WAIT_SHIP,
-        total_amount="99.99",
-        pay_amount="99.99",
-        receiver=addr,
-        products=[product],
-        created_at=now,
-        updated_at=now,
-    )
-    platform_data = TaobaoAdapter.from_unified_order(order)
-    assert platform_data["trade"]["tid"] == "TB_ORDER_001"
-
-
 def test_douyin_shop_adapter_to_unified():
     platform_data = {
-        "order_id": "DS_ORDER_001",
-        "status": "shipped",
-        "total_amount": "99.99",
-        "pay_amount": "99.99",
-        "freight": "0.00",
-        "receiver": {
-            "name": "李四",
-            "phone": "139****9000",
-            "address": "上海",
-        },
-        "products": [
-            {"product_id": "P001", "name": "商品", "price": "99.99", "num": 1}
-        ],
-        "create_time": "2026-03-01 10:00:00",
-        "update_time": "2026-03-29 12:00:00",
+        "order": {
+            "order_id": "DS_ORDER_001",
+            "order_status": "shipped",
+            "order_amount": {
+                "total_amount": "9999",
+                "pay_amount": "9999",
+                "freight_amount": "0",
+            },
+            "receiver": {
+                "name": "李四",
+                "phone": "139****9000",
+                "address": "上海",
+            },
+            "product_items": [
+                {"product_id": "P001", "product_name": "商品", "product_count": 1, "product_price": "9999"}
+            ],
+            "create_time": "2026-03-01T10:00:00",
+            "update_time": "2026-03-29T12:00:00",
+        }
     }
-    unified = DouyinShopAdapter.to_unified_order(platform_data)
+    adapter = DouyinOrderAdapter()
+    unified = adapter.to_unified_order(platform_data)
     assert unified.order_id == "DS_ORDER_001"
     assert unified.platform == Platform.DOUYIN_SHOP
     assert unified.status == OrderStatus.SHIPPED
+
+
+def test_wecom_kf_adapter_to_unified():
+    platform_data = {
+        "conversation_id": "WC_KF_001",
+        "status": "in_session",
+        "openid": "test_openid",
+        "scene": "sales",
+        "created_at": "2026-03-01T10:00:00",
+        "updated_at": "2026-03-29T12:00:00",
+    }
+    adapter = WeComKfConversationAdapter()
+    unified = adapter.to_unified_conversation(platform_data)
+    assert unified.conversation_id == "WC_KF_001"
+    assert unified.platform == Platform.WECOM_KF
+    assert unified.openid == "test_openid"
 
 
 def test_order_status_enum():

@@ -1,13 +1,12 @@
 from datetime import datetime
 
-from adapters.platform_adapter import (
-    DouyinShopAdapter,
-    JDAdapter,
-    KuaishouAdapter,
-    TaobaoAdapter,
-    XhsAdapter,
-)
-from app.models.unified import OrderStatus, Platform
+from app.adapters.taobao import TaobaoOrderAdapter
+from app.adapters.douyin import DouyinOrderAdapter, DouyinShipmentAdapter, DouyinAfterSaleAdapter
+from app.adapters.jd import JDOrderAdapter, JDShipmentAdapter, JDAfterSaleAdapter
+from app.adapters.xhs import XHSOrderAdapter, XHSShipmentAdapter, XHSAfterSaleAdapter
+from app.adapters.kuaishou import KuaishouOrderAdapter, KuaishouShipmentAdapter, KuaishouAfterSaleAdapter
+from app.models import OrderStatus
+from app.models.unified import Platform
 
 
 class TestTaobaoAdapter:
@@ -35,45 +34,26 @@ class TestTaobaoAdapter:
                 ]
             },
         }
-        
-        unified = TaobaoAdapter.to_unified_order(platform_data)
-        
+
+        adapter = TaobaoOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
+
         assert unified.order_id == "TB_ORDER_001"
         assert unified.platform == Platform.TAOBAO
         assert unified.status == OrderStatus.WAIT_SHIP
         assert unified.total_amount == "299.00"
         assert unified.receiver.name == "张三"
         assert len(unified.products) == 1
-    
-    def test_from_unified_order(self):
-        from app.models.unified import UnifiedAddress, UnifiedOrder, UnifiedProduct
-        
-        unified = UnifiedOrder(
-            order_id="TB_ORDER_001",
-            platform=Platform.TAOBAO,
-            status=OrderStatus.WAIT_SHIP,
-            total_amount="299.00",
-            pay_amount="299.00",
-            receiver=UnifiedAddress(name="张三", phone="138****0000", address="浙江省杭州市"),
-            products=[UnifiedProduct(product_id="001", name="测试商品", price="299.00", quantity=1)],
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-        )
-        
-        platform_data = TaobaoAdapter.from_unified_order(unified)
-        
-        assert platform_data["trade"]["tid"] == "TB_ORDER_001"
-        assert platform_data["trade"]["status"] == "wait_ship"
 
 
 class TestJDAdapter:
     def test_to_unified_order(self):
         platform_data = {
-            "order_id": "JD_ORDER_001",
-            "status": "wait_seller_delivery",
-            "total_amount": "199.00",
-            "pay_amount": "199.00",
-            "freight": "0.00",
+            "orderId": "JD_ORDER_001",
+            "orderStatus": "wait_seller_delivery",
+            "totalAmount": 19900,
+            "payAmount": 19900,
+            "freightAmount": 0,
             "receiver": {
                 "name": "李四",
                 "phone": "139****0000",
@@ -81,18 +61,19 @@ class TestJDAdapter:
             },
             "items": [
                 {
-                    "item_id": "JD_ITEM_001",
-                    "name": "京东商品",
-                    "price": "199.00",
-                    "quantity": 1,
+                    "itemId": "JD_ITEM_001",
+                    "itemName": "京东商品",
+                    "price": 19900,
+                    "num": 1,
                 }
             ],
-            "create_time": "2026-03-01T10:00:00",
-            "update_time": "2026-03-29T12:00:00",
+            "createTime": "2026-03-01T10:00:00",
+            "updateTime": "2026-03-29T12:00:00",
         }
-        
-        unified = JDAdapter.to_unified_order(platform_data)
-        
+
+        adapter = JDOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
+
         assert unified.order_id == "JD_ORDER_001"
         assert unified.platform == Platform.JD
         assert unified.status == OrderStatus.WAIT_SHIP
@@ -124,7 +105,8 @@ class TestJDAdapter:
             }
         }
 
-        unified = JDAdapter.to_unified_order(platform_data)
+        adapter = JDOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
 
         assert unified.status == OrderStatus.WAIT_PAY
         assert unified.total_amount == "199.00"
@@ -156,7 +138,8 @@ class TestJDAdapter:
             }
         }
 
-        unified = JDAdapter.to_unified_order(platform_data)
+        adapter = JDOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
 
         assert unified.status == OrderStatus.SHIPPED
         assert unified.pay_amount == "199.00"
@@ -186,9 +169,10 @@ class TestXhsAdapter:
             "create_time": "2026-03-01T10:00:00",
             "update_time": "2026-03-29T12:00:00",
         }
-        
-        unified = XhsAdapter.to_unified_order(platform_data)
-        
+
+        adapter = XHSOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
+
         assert unified.order_id == "XHS_ORDER_001"
         assert unified.platform == Platform.XHS
         assert unified.status == OrderStatus.IN_TRANSIT
@@ -218,9 +202,10 @@ class TestKuaishouAdapter:
             "create_time": "2026-03-01T10:00:00",
             "update_time": "2026-03-29T12:00:00",
         }
-        
-        unified = KuaishouAdapter.to_unified_order(platform_data)
-        
+
+        adapter = KuaishouOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
+
         assert unified.order_id == "KS_ORDER_001"
         assert unified.platform == Platform.KUAISHOU
         assert unified.status == OrderStatus.FINISHED
@@ -258,7 +243,8 @@ class TestDouyinShopAdapter:
             }
         }
 
-        unified = DouyinShopAdapter.to_unified_order(platform_data)
+        adapter = DouyinOrderAdapter()
+        unified = adapter.to_unified_order(platform_data)
 
         assert unified.order_id == "6912558345648290211"
         assert unified.status == OrderStatus.WAIT_PAY
