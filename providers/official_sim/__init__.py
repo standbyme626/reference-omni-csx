@@ -1,9 +1,4 @@
-"""Backward-compatible re-export of official_sim_provider.
-
-This module exists for compatibility. New code should import from providers.official_sim.
-"""
-
-from providers.official_sim import (
+from providers.official_sim.provider import (
     OfficialSimProxyProvider,
     OfficialSimNotFoundError,
     OfficialSimRequestError,

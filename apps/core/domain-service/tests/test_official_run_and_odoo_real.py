@@ -200,7 +200,7 @@ def test_official_sim_request_json_preserves_404_detail(monkeypatch):
         def request(self, method, url, params=None, json=None):
             return DummyResponse()
 
-    monkeypatch.setattr("app.services.official_sim_provider.httpx.Client", DummyClient)
+    monkeypatch.setattr("providers.official_sim.provider.httpx.Client", DummyClient)
 
     provider = OfficialSimProxyProvider("taobao", base_url="http://official-sim.test")
 

@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 
 from app.adapters.registry import AdapterRegistry
 from app.core.config import Environment, settings
-from app.services.official_sim_provider import OfficialSimProxyProvider
+from providers.official_sim import OfficialSimProxyProvider
 from app.models.unified import Platform
 
 from providers.base.provider import ProviderMode
@@ -20,7 +20,7 @@ class PlatformGatewayService:
         self._providers: Dict[Platform, Any] = {}
         self._provider_mode = (settings.default_provider_mode or "mock").lower()
         self._init_providers()
-    
+
     def _init_providers(self):
         provider_classes = {
             Platform.TAOBAO: TaobaoProvider,
@@ -30,7 +30,7 @@ class PlatformGatewayService:
             Platform.KUAISHOU: KuaishouProvider,
             Platform.WECOM_KF: WecomKfProvider,
         }
-        
+
         for platform, provider_class in provider_classes.items():
             try:
                 if self._provider_mode == "official_sim":
@@ -43,7 +43,11 @@ class PlatformGatewayService:
                         fallback_provider=fallback_provider,
                     )
                 else:
-                    mode = ProviderMode.REAL if self._provider_mode == "real" else ProviderMode.MOCK
+                    mode = (
+                        ProviderMode.REAL
+                        if self._provider_mode == "real"
+                        else ProviderMode.MOCK
+                    )
                     provider = provider_class(mode=mode)
                 self._providers[platform] = provider
             except Exception:
@@ -53,19 +57,19 @@ class PlatformGatewayService:
         if not settings.official_sim_enable_mock_fallback:
             return False
         return settings.environment == Environment.DEVELOPMENT
-    
+
     def get_provider(self, platform: Platform) -> Optional[Any]:
         return self._providers.get(platform)
-    
+
     def get_adapter(self, platform: Platform):  # -> Optional[_LegacyAdapter]:
         return self.registry.get_adapter(platform)
-    
+
     def has_provider(self, platform: Platform) -> bool:
         return platform in self._providers
-    
+
     def has_adapter(self, platform: Platform) -> bool:
         return self.registry.is_registered(platform)
-    
+
     def get_order(
         self,
         platform: Platform,
@@ -75,23 +79,27 @@ class PlatformGatewayService:
         provider = self.get_provider(platform)
         if not provider:
             raise ValueError(f"Platform not supported: {platform}")
-        
+
         caps = self.registry.get_capabilities(platform)
         if not caps.supports_order():
             raise ValueError(f"Platform {platform} does not support order operations")
-        
+
         if isinstance(provider, OfficialSimProxyProvider):
             return provider.get_order(order_id, official_run_id=official_run_id)
         return provider.get_order(order_id)
-    
-    def get_unified_order(self, platform: Platform, order_id: str, official_run_id: Optional[str] = None) -> dict:
+
+    def get_unified_order(
+        self, platform: Platform, order_id: str, official_run_id: Optional[str] = None
+    ) -> dict:
         """Legacy method — kept for backward compatibility."""
-        platform_data = self.get_order(platform, order_id, official_run_id=official_run_id)
+        platform_data = self.get_order(
+            platform, order_id, official_run_id=official_run_id
+        )
         adapter = self.get_adapter(platform)
         if not adapter:
             raise ValueError(f"No adapter registered for platform: {platform}")
         return adapter.to_unified_order(platform_data)
-    
+
     def get_shipment(
         self,
         platform: Platform,
@@ -101,15 +109,17 @@ class PlatformGatewayService:
         provider = self.get_provider(platform)
         if not provider:
             raise ValueError(f"Platform not supported: {platform}")
-        
+
         caps = self.registry.get_capabilities(platform)
         if not caps.supports_shipment():
-            raise ValueError(f"Platform {platform} does not support shipment operations")
-        
+            raise ValueError(
+                f"Platform {platform} does not support shipment operations"
+            )
+
         if isinstance(provider, OfficialSimProxyProvider):
             return provider.get_shipment(order_id, official_run_id=official_run_id)
         return provider.get_shipment(order_id)
-    
+
     def get_unified_shipment(self, platform: Platform, order_id: str) -> dict:
         """Legacy method — kept for backward compatibility."""
         platform_data = self.get_shipment(platform, order_id)
@@ -117,7 +127,7 @@ class PlatformGatewayService:
         if not adapter:
             raise ValueError(f"No adapter registered for platform: {platform}")
         return adapter.to_unified_shipment(platform_data)
-    
+
     def get_refund(
         self,
         platform: Platform,
@@ -127,11 +137,13 @@ class PlatformGatewayService:
         provider = self.get_provider(platform)
         if not provider:
             raise ValueError(f"Platform not supported: {platform}")
-        
+
         caps = self.registry.get_capabilities(platform)
         if not caps.supports_after_sale():
-            raise ValueError(f"Platform {platform} does not support after-sale operations")
-        
+            raise ValueError(
+                f"Platform {platform} does not support after-sale operations"
+            )
+
         if isinstance(provider, OfficialSimProxyProvider):
             return provider.get_refund(refund_id, official_run_id=official_run_id)
         return provider.get_refund(refund_id)
@@ -148,14 +160,18 @@ class PlatformGatewayService:
 
         caps = self.registry.get_capabilities(platform)
         if not caps.supports_after_sale():
-            raise ValueError(f"Platform {platform} does not support after-sale operations")
+            raise ValueError(
+                f"Platform {platform} does not support after-sale operations"
+            )
 
         if isinstance(provider, OfficialSimProxyProvider):
-            return provider.get_refund_by_order(order_id, official_run_id=official_run_id)
+            return provider.get_refund_by_order(
+                order_id, official_run_id=official_run_id
+            )
         if hasattr(provider, "get_refund_by_order"):
             return provider.get_refund_by_order(order_id)
         return provider.get_refund(order_id)
-    
+
     def get_unified_refund(self, platform: Platform, refund_id: str) -> dict:
         """Legacy method — kept for backward compatibility."""
         platform_data = self.get_refund(platform, refund_id)
@@ -176,13 +192,19 @@ class PlatformGatewayService:
 
         caps = self.registry.get_capabilities(platform)
         if not caps.supports_conversation():
-            raise ValueError(f"Platform {platform} does not support conversation operations")
+            raise ValueError(
+                f"Platform {platform} does not support conversation operations"
+            )
 
         if isinstance(provider, OfficialSimProxyProvider):
-            return provider.get_conversation(conversation_id, official_run_id=official_run_id)
+            return provider.get_conversation(
+                conversation_id, official_run_id=official_run_id
+            )
         return provider.get_conversation(conversation_id)
 
-    def get_unified_conversation(self, platform: Platform, conversation_id: str) -> dict:
+    def get_unified_conversation(
+        self, platform: Platform, conversation_id: str
+    ) -> dict:
         """Legacy method — kept for backward compatibility."""
         platform_data = self.get_conversation(platform, conversation_id)
         adapter = self.get_adapter(platform)
