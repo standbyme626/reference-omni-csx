@@ -13,8 +13,9 @@
 - [x] Phase 3: Service 层重写（拆分 God Class，单一职责）✅ 2026-04-05
 - [x] Phase 4: API 路由层重写（极简 + 统一 DI + 错误处理）✅ 2026-04-05
 - [x] Phase 5: 消除重复逻辑 ✅ 2026-04-05
-- [ ] Phase 6: 修复测试基础设施 + 补充测试
-- [x] Phase 7: 杂项修复 + 清理旧代码 ✅ 2026-04-05（删除 platform_adapters/contracts/capabilities 等死代码）
+- [x] Phase 6: 修复测试基础设施 + 补充测试 ✅ 2026-04-07 (pytest.ini pythonpath + 129 tests passing)
+- [x] Phase 7: 杂项修复 + 清理旧代码 ✅ 2026-04-07 (删除 platform_adapters/, business_context_service.py)
+- [x] Phase 8: 收尾迁移 ✅ 2026-04-07 (ContextResolver 替换 BusinessContextService)
 
 ---
 
