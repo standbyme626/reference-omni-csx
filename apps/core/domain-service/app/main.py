@@ -13,6 +13,7 @@ from app.api.errors import (
     bad_request_error_handler,
     general_exception_handler,
 )
+from app.core.config import settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,14 +28,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
