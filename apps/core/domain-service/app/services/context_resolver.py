@@ -14,6 +14,7 @@ from app.services.conversation_service import ConversationService
 from app.services.order_service import OrderService
 from app.services.push_events_service import PushEventsService
 from app.services.risk_evaluator import RiskEvaluator
+from app.services.reply_generator import ReplyGenerator
 from app.services.shipment_service import ShipmentService
 from providers.odoo.provider import OdooProvider
 
@@ -30,6 +31,7 @@ class ContextResolver:
         odoo_provider: OdooProvider,
         push_events_service: PushEventsService,
         risk_evaluator: RiskEvaluator,
+        reply_generator: ReplyGenerator,
     ):
         self.order_service = order_service
         self.shipment_service = shipment_service
@@ -38,6 +40,7 @@ class ContextResolver:
         self.odoo_provider = odoo_provider
         self.push_events_service = push_events_service
         self.risk_evaluator = risk_evaluator
+        self.reply_generator = reply_generator
 
     def get_context(
         self,
@@ -175,3 +178,190 @@ class ContextResolver:
             except Exception:
                 continue
         return None
+
+    def build_context(
+        self,
+        platform: str,
+        biz_id: str,
+        biz_type: str = "order",
+        options: Optional[Dict[str, bool]] = None,
+        official_run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Build a full context with optional Odoo enrichments and recommendations."""
+        options = options or {}
+
+        if biz_type == "order":
+            context = self._build_order_context(platform, biz_id, options, official_run_id)
+        elif biz_type == "conversation":
+            context = self._build_conversation_context(platform, biz_id, options, official_run_id)
+        elif biz_type == "after_sale":
+            context = self._build_after_sale_context(platform, biz_id, options, official_run_id)
+        else:
+            context = self.get_context(platform, biz_id, official_run_id)
+
+        context["biz_type"] = biz_type
+
+        if options.get("include_recommendations", True):
+            context["action_candidates"] = self.reply_generator.generate_actions(context)
+            context["reply_candidates"] = self.reply_generator.generate_replies(context)
+
+        return context
+
+    def _build_order_context(
+        self, platform: str, order_id: str,
+        options: Dict[str, bool], official_run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        context = self.get_context(platform, order_id, official_run_id)
+        biz_ref = context.get("resolved_biz_reference") or self.conversation_service.resolve_business_reference(
+            platform, order_id, official_run_id=official_run_id,
+        )
+        effective_platform = biz_ref["effective_platform"]
+        effective_order_id = biz_ref["effective_biz_id"]
+
+        if options.get("include_inventory", False):
+            inventory = self.resolve_inventory_snapshot(context, effective_order_id)
+            if inventory:
+                context["inventory_snapshot"] = inventory
+                self._mark(context, "inventory_snapshot", "odoo")
+
+        try:
+            order_audit = self.odoo_provider.get_order_audit(effective_order_id, platform=effective_platform)
+            if order_audit:
+                context["order_audit_snapshot"] = {
+                    "order_id": order_audit.order_id, "audit_status": order_audit.audit_status,
+                    "audit_notes": order_audit.audit_notes, "audited_by": order_audit.audited_by,
+                    "audited_at": order_audit.audited_at.isoformat() if order_audit.audited_at else None,
+                }
+                self._mark(context, "order_audit_snapshot", "odoo")
+        except Exception as exc:
+            context["order_audit_snapshot"] = None
+            self._record_error(context, "order_audit_snapshot", exc)
+
+        try:
+            exceptions = self.odoo_provider.get_order_exceptions(effective_order_id)
+            context["order_exception_snapshots"] = [
+                {
+                    "exception_id": exc.exception_id, "order_id": exc.order_id,
+                    "exception_type": exc.exception_type, "severity": exc.severity,
+                    "description": exc.description, "status": exc.status,
+                    "created_at": exc.created_at.isoformat() if exc.created_at else None,
+                    "resolved_at": exc.resolved_at.isoformat() if exc.resolved_at else None,
+                }
+                for exc in exceptions
+            ]
+            if context["order_exception_snapshots"]:
+                self._mark(context, "order_exception_snapshots", "odoo")
+        except Exception as exc:
+            context["order_exception_snapshots"] = []
+            self._record_error(context, "order_exception_snapshots", exc)
+
+        try:
+            fulfillment = self.odoo_provider.get_fulfillment(effective_order_id, platform=effective_platform)
+            if fulfillment:
+                context["fulfillment_snapshot"] = {
+                    "order_id": fulfillment.order_id, "status": fulfillment.status,
+                    "warehouse": fulfillment.warehouse, "picking_id": fulfillment.picking_id,
+                    "scheduled_date": fulfillment.scheduled_date.isoformat() if fulfillment.scheduled_date else None,
+                    "actual_date": fulfillment.actual_date.isoformat() if fulfillment.actual_date else None,
+                }
+                self._mark(context, "fulfillment_snapshot", "odoo")
+        except Exception as exc:
+            context["fulfillment_snapshot"] = None
+            self._record_error(context, "fulfillment_snapshot", exc)
+
+        return context
+
+    def _build_conversation_context(
+        self, platform: str, conversation_id: str,
+        options: Dict[str, bool], official_run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        context_id = str(uuid.uuid4())
+        now = datetime.now()
+        context = {
+            "context_id": context_id, "platform": platform, "biz_id": conversation_id,
+            "biz_type": "conversation", "official_run_id": official_run_id,
+            "created_at": now.isoformat(), "updated_at": now.isoformat(),
+            "data_sources": {}, "source_errors": [],
+        }
+
+        try:
+            conversation = self.conversation_service.get_conversation(
+                platform, conversation_id, official_run_id=official_run_id,
+            )
+            context["conversation_snapshot"] = conversation
+            self._mark(context, "conversation_snapshot",
+                       "official_sim_run" if official_run_id else "platform_provider")
+        except Exception as exc:
+            context["conversation_snapshot"] = None
+            self._record_error(context, "conversation_snapshot", exc)
+
+        if options.get("include_inventory", False):
+            context["inventory_snapshot"] = None
+        context["order_audit_snapshot"] = None
+        context["order_exception_snapshots"] = []
+        context["fulfillment_snapshot"] = None
+
+        context["risk_flags"] = self.risk_evaluator.evaluate(context)
+        context["quality_flags"] = {"score": 100, "issues": [], "suggestions": []}
+        return context
+
+    def _build_after_sale_context(
+        self, platform: str, after_sale_id: str,
+        options: Dict[str, bool], official_run_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        context_id = str(uuid.uuid4())
+        now = datetime.now()
+        context = {
+            "context_id": context_id, "platform": platform, "biz_id": after_sale_id,
+            "biz_type": "after_sale", "official_run_id": official_run_id,
+            "created_at": now.isoformat(), "updated_at": now.isoformat(),
+            "data_sources": {}, "source_errors": [],
+        }
+
+        try:
+            after_sale = self.after_sale_service.get_after_sale(
+                platform, after_sale_id, official_run_id=official_run_id,
+            )
+            context["after_sale_snapshot"] = {
+                "after_sale_id": after_sale.get("after_sale_id"),
+                "canonical_after_sale_id": after_sale.get("canonical_after_sale_id"),
+                "external_after_sale_id": after_sale.get("external_after_sale_id"),
+                "status": after_sale.get("status"),
+                "status_text": after_sale.get("status_text"),
+                "reason": after_sale.get("reason"),
+            }
+            self._mark(context, "after_sale_snapshot",
+                       "official_sim_run" if official_run_id else "platform_provider")
+
+            order_id = after_sale.get("order_id")
+            if order_id:
+                try:
+                    exceptions = self.odoo_provider.get_order_exceptions(order_id)
+                    context["order_exception_snapshots"] = [
+                        {
+                            "exception_id": exc.exception_id, "order_id": exc.order_id,
+                            "exception_type": exc.exception_type, "severity": exc.severity,
+                            "description": exc.description, "status": exc.status,
+                            "created_at": exc.created_at.isoformat() if exc.created_at else None,
+                            "resolved_at": exc.resolved_at.isoformat() if exc.resolved_at else None,
+                        }
+                        for exc in exceptions
+                    ]
+                    if context["order_exception_snapshots"]:
+                        self._mark(context, "order_exception_snapshots", "odoo")
+                except Exception as exc:
+                    context["order_exception_snapshots"] = []
+                    self._record_error(context, "order_exception_snapshots", exc)
+        except Exception as exc:
+            context["after_sale_snapshot"] = None
+            context["order_exception_snapshots"] = []
+            self._record_error(context, "after_sale_snapshot", exc)
+
+        if options.get("include_inventory", False):
+            context["inventory_snapshot"] = None
+        context["order_audit_snapshot"] = None
+        context["fulfillment_snapshot"] = None
+
+        context["risk_flags"] = self.risk_evaluator.evaluate(context)
+        context["quality_flags"] = {"score": 100, "issues": [], "suggestions": []}
+        return context

@@ -3,9 +3,12 @@ from types import SimpleNamespace
 
 import pytest
 from app.adapters.registry import bootstrap_default_registry
-from app.services.business_context_service import BusinessContextService
+from app.services.context_resolver import ContextResolver
 from app.services.conversation_service import ConversationService
 from app.services.recommendation_service import RecommendationService
+from app.services.reply_generator import ReplyGenerator
+from app.services.risk_evaluator import RiskEvaluator
+from app.services.push_events_service import PushEventsService
 
 
 class FakeOrderService:
@@ -95,20 +98,58 @@ class FakeOdooProvider:
         )
 
 
+class FakePushEventsService:
+    def get_push_events(self, official_run_id):
+        return []
+
+    def apply_state(self, context, events):
+        pass
+
+
+class FakeRiskEvaluator:
+    def evaluate(self, context):
+        return {"level": "low"}
+
+
+class FakeReplyGenerator:
+    def generate_replies(self, context, intent=None):
+        order_status = context.get("order_snapshot", {}).get("status", "unknown")
+        return [
+            {
+                "reply_type": "order_status",
+                "content": f"Your order is {order_status}",
+                "score": 0.9,
+            }
+        ]
+
+    def generate_actions(self, context):
+        return [{"action_type": "view_order", "label": "View Order"}]
+
+    def evaluate_escalation(self, context, reason=None):
+        return {"escalate": False}
+
+
 def test_build_order_context_bridges_wecom_order_to_effective_platform():
     order_service = FakeOrderService()
     shipment_service = FakeShipmentService()
+    after_sale_service = FakeAfterSaleService()
+    conversation_service = FakeConversationService()
     odoo_provider = FakeOdooProvider()
-    service = BusinessContextService(
-        gateway=None,
+    push_events_service = FakePushEventsService()
+    risk_evaluator = FakeRiskEvaluator()
+    reply_generator = FakeReplyGenerator()
+    resolver = ContextResolver(
         order_service=order_service,
         shipment_service=shipment_service,
-        after_sale_service=FakeAfterSaleService(),
-        conversation_service=FakeConversationService(),
+        after_sale_service=after_sale_service,
+        conversation_service=conversation_service,
         odoo_provider=odoo_provider,
+        push_events_service=push_events_service,
+        risk_evaluator=risk_evaluator,
+        reply_generator=reply_generator,
     )
 
-    context = service.build_context(
+    context = resolver.build_context(
         platform="wecom_kf",
         biz_id="JD_ORDER_003",
         biz_type="order",
@@ -142,7 +183,9 @@ class FakeContextService:
 
 
 def test_reply_recommendations_support_user_sim_intent_aliases():
-    service = RecommendationService(FakeContextService())
+    context_resolver = FakeContextService()
+    reply_generator = ReplyGenerator()
+    service = RecommendationService(context_resolver, reply_generator)
 
     result = service.get_reply_recommendations(
         platform="wecom_kf",
@@ -170,7 +213,9 @@ class FakeRefundOnlyContextService:
 
 
 def test_reply_recommendations_do_not_leak_after_sale_for_shipment_intent():
-    service = RecommendationService(FakeRefundOnlyContextService())
+    context_resolver = FakeRefundOnlyContextService()
+    reply_generator = ReplyGenerator()
+    service = RecommendationService(context_resolver, reply_generator)
 
     result = service.get_reply_recommendations(
         platform="taobao",
@@ -205,16 +250,20 @@ def test_build_order_context_bridges_wecom_aliases_to_effective_platform_id(
     order_service = FakeOrderService()
     shipment_service = FakeShipmentService()
     odoo_provider = FakeOdooProvider()
-    service = BusinessContextService(
-        gateway=None,
+    resolver = ContextResolver(
         order_service=order_service,
         shipment_service=shipment_service,
         after_sale_service=FakeAfterSaleService(),
-        conversation_service=ConversationService(EmptyGateway(), bootstrap_default_registry()),
+        conversation_service=ConversationService(
+            EmptyGateway(), bootstrap_default_registry()
+        ),
         odoo_provider=odoo_provider,
+        push_events_service=FakePushEventsService(),
+        risk_evaluator=FakeRiskEvaluator(),
+        reply_generator=FakeReplyGenerator(),
     )
 
-    context = service.build_context(
+    context = resolver.build_context(
         platform="wecom_kf",
         biz_id=biz_id,
         biz_type="order",

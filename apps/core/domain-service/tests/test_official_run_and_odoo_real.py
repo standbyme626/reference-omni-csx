@@ -4,7 +4,7 @@ from datetime import datetime
 import pytest
 from app.adapters.registry import bootstrap_default_registry
 from app.core.config import settings
-from app.services.business_context_service import BusinessContextService
+from app.services.context_resolver import ContextResolver
 from app.services.official_sim_provider import (
     OfficialSimNotFoundError,
     OfficialSimProxyProvider,
@@ -27,7 +27,9 @@ def _official_sim_available():
         s.close()
 
 
-pytestmark = pytest.mark.skipif(not _official_sim_available(), reason="official-sim server not running")
+pytestmark = pytest.mark.skipif(
+    not _official_sim_available(), reason="official-sim server not running"
+)
 
 
 def test_gateway_forwards_official_run_id_to_official_sim_provider(monkeypatch):
@@ -106,16 +108,39 @@ def test_business_context_tracks_sources_and_propagates_official_run_id():
         def get_conversation(self, platform, conversation_id):
             return {"conversation_id": conversation_id}
 
-    service = BusinessContextService(
-        gateway=None,
+    class FakePushEventsService:
+        def get_push_events(self, official_run_id):
+            return []
+
+        def apply_state(self, context, events):
+            pass
+
+    class FakeRiskEvaluator:
+        def evaluate(self, context):
+            return {"level": "low"}
+
+    class FakeReplyGenerator:
+        def generate_replies(self, context, intent=None):
+            return []
+
+        def generate_actions(self, context):
+            return []
+
+        def evaluate_escalation(self, context, reason=None):
+            return {"escalate": False}
+
+    resolver = ContextResolver(
         order_service=FakeOrderService(),
         shipment_service=FakeShipmentService(),
         after_sale_service=FakeAfterSaleService(),
         conversation_service=FakeConversationService(),
         odoo_provider=OdooProvider(mode=OdooProviderMode.MOCK),
+        push_events_service=FakePushEventsService(),
+        risk_evaluator=FakeRiskEvaluator(),
+        reply_generator=FakeReplyGenerator(),
     )
 
-    context = service.get_context("taobao", "TB_ORDER_001", official_run_id="run-456")
+    context = resolver.get_context("taobao", "TB_ORDER_001", official_run_id="run-456")
 
     assert captured == {
         "order": "run-456",
@@ -123,8 +148,12 @@ def test_business_context_tracks_sources_and_propagates_official_run_id():
         "after_sale": "run-456",
     }
     assert context["data_sources"]["order_snapshot"] == "official_sim_run"
-    assert any(error["source"] == "shipment_snapshot" for error in context["source_errors"])
-    assert any(error["source"] == "after_sale_snapshot" for error in context["source_errors"])
+    assert any(
+        error["source"] == "shipment_snapshot" for error in context["source_errors"]
+    )
+    assert any(
+        error["source"] == "after_sale_snapshot" for error in context["source_errors"]
+    )
 
 
 def test_odoo_real_sync_bridge_uses_async_provider():
@@ -212,11 +241,20 @@ def test_official_sim_provider_normalizes_jd_shipment_payload(monkeypatch):
     assert shipment["created_at"] == "2026-03-29T10:05:00"
     assert shipment["updated_at"] == "2026-03-29T14:00:00"
     assert shipment["nodes"][0]["node"] == "订单创建"
-    assert shipment["nodes"][-1]["description"] == "承运商 顺丰速运，运单号 SF1234567890"
+    assert (
+        shipment["nodes"][-1]["description"] == "承运商 顺丰速运，运单号 SF1234567890"
+    )
 
 
 @pytest.mark.parametrize(
-    ("platform", "order_id", "response_data", "expected_status", "expected_company", "expected_tracking_no"),
+    (
+        "platform",
+        "order_id",
+        "response_data",
+        "expected_status",
+        "expected_company",
+        "expected_tracking_no",
+    ),
     [
         (
             "taobao",
@@ -349,7 +387,9 @@ def test_official_sim_provider_get_order_accepts_alias_identifier(monkeypatch):
     assert order["jingdong_order_search_responce"]["orderId"] == 98765432101234
 
 
-def test_official_sim_provider_get_refund_by_order_normalizes_stable_identifiers(monkeypatch):
+def test_official_sim_provider_get_refund_by_order_normalizes_stable_identifiers(
+    monkeypatch,
+):
     provider = OfficialSimProxyProvider("taobao", base_url="http://official-sim.test")
 
     def fake_request_json(method, path, params=None, json_body=None):
@@ -387,7 +427,9 @@ def test_official_sim_provider_get_refund_by_order_normalizes_stable_identifiers
     assert refund["status"] == "refunding"
 
 
-def test_official_sim_provider_get_refund_by_order_accepts_alias_identifier(monkeypatch):
+def test_official_sim_provider_get_refund_by_order_accepts_alias_identifier(
+    monkeypatch,
+):
     provider = OfficialSimProxyProvider("taobao", base_url="http://official-sim.test")
 
     def fake_request_json(method, path, params=None, json_body=None):

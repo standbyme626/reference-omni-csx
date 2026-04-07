@@ -4,8 +4,8 @@ import logging
 from fastapi import APIRouter, Depends
 
 from app.core.response import success_response
-from app.dependencies import get_business_context_service
-from app.services.business_context_service import BusinessContextService
+from app.dependencies import get_context_resolver
+from app.services.context_resolver import ContextResolver
 from app.schemas.context import BusinessContextBuildRequest
 
 router = APIRouter()
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 @router.get("/{platform}/{biz_id}")
 async def get_context(
     platform: str, biz_id: str, official_run_id: str | None = None,
-    service: BusinessContextService = Depends(get_business_context_service),
+    service: ContextResolver = Depends(get_context_resolver),
 ):
     context = service.get_context(platform, biz_id, official_run_id=official_run_id)
     logger.info("context queried official_run_id=%s platform=%s biz_id=%s", official_run_id, platform, biz_id)
@@ -25,7 +25,7 @@ async def get_context(
 @router.post("/build")
 async def build_context(
     request: BusinessContextBuildRequest,
-    service: BusinessContextService = Depends(get_business_context_service),
+    service: ContextResolver = Depends(get_context_resolver),
 ):
     options = {
         "include_inventory": request.include_inventory,
@@ -45,7 +45,7 @@ async def build_context(
 @router.post("/refresh")
 async def refresh_context(
     request: BusinessContextBuildRequest,
-    service: BusinessContextService = Depends(get_business_context_service),
+    service: ContextResolver = Depends(get_context_resolver),
 ):
     options = {
         "include_inventory": request.include_inventory,

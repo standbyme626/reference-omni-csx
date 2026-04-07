@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.dependencies import get_business_context_service
+from app.dependencies import get_context_resolver
 from app.services.recommendation_service import RecommendationService
 
 
@@ -29,13 +29,13 @@ async def suggest_reply(request: SuggestReplyRequest):
     Returns the format expected by agent-console:
     {intent, confidence, suggested_reply, used_tools, risk_level, needs_human_review}
     """
-    biz_ctx = get_business_context_service()
+    ctx_resolver = get_context_resolver()
 
     # Try to get business context using order_id if available
     biz_id = request.order_id or request.conversation_id
     context = {}
     try:
-        context = biz_ctx.get_context(request.platform or "taobao", biz_id)
+        context = ctx_resolver.get_context(request.platform or "taobao", biz_id)
     except Exception:
         pass
 

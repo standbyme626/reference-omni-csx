@@ -16,7 +16,6 @@ from app.services.quality_service import QualityService
 from app.services.risk_service import RiskService
 from app.services.platform_gateway_service import PlatformGatewayService
 from app.services.push_event_tracker import PushEventTracker
-from app.services.business_context_service import BusinessContextService
 
 __all__ = [
     "OrderService",
@@ -35,5 +34,4 @@ __all__ = [
     "RiskService",
     "PlatformGatewayService",
     "PushEventTracker",
-    "BusinessContextService",
 ]

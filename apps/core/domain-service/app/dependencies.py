@@ -4,7 +4,6 @@ from typing import Optional
 from app.adapters.registry import PlatformRegistry, bootstrap_default_registry
 from app.core.config import settings
 from app.services.after_sale_service import AfterSaleService
-from app.services.business_context_service import BusinessContextService
 from app.services.conversation_service import ConversationService
 from app.services.context_resolver import ContextResolver
 from app.services.integration_service import IntegrationService
@@ -113,26 +112,13 @@ def get_context_resolver() -> ContextResolver:
         odoo_provider=get_odoo_provider(),
         push_events_service=get_push_events_service(),
         risk_evaluator=get_risk_evaluator(),
-    )
-
-
-@lru_cache()
-def get_business_context_service() -> BusinessContextService:
-    gateway = get_platform_gateway_service()
-    return BusinessContextService(
-        gateway=gateway,
-        order_service=get_order_service(),
-        shipment_service=get_shipment_service(),
-        after_sale_service=get_after_sale_service(),
-        conversation_service=get_conversation_service(),
-        odoo_provider=get_odoo_provider(),
-        push_event_tracker=get_push_event_tracker(),
+        reply_generator=get_reply_generator(),
     )
 
 
 @lru_cache()
 def get_recommendation_service() -> RecommendationService:
-    return RecommendationService(get_business_context_service())
+    return RecommendationService(get_context_resolver(), get_reply_generator())
 
 
 @lru_cache()
