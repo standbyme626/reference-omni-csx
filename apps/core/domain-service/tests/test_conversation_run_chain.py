@@ -1,7 +1,24 @@
+import socket
+
 import pytest
-from app.services.conversation_domain_service import ConversationDomainService
+from app.adapters.registry import bootstrap_default_registry
+
+
+def _official_sim_available():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect(("localhost", 8001))
+        return True
+    except (ConnectionRefusedError, OSError):
+        return False
+    finally:
+        s.close()
+
+
+pytestmark = pytest.mark.skipif(not _official_sim_available(), reason="official-sim server not running")
+from app.services.conversation_service import ConversationService
 from app.services.official_sim_provider import OfficialSimProxyProvider
-from models.unified import Platform
+from app.models.unified import Platform
 
 
 class FakeOfficialConversationProvider(OfficialSimProxyProvider):
@@ -76,9 +93,14 @@ class FakeGateway:
         return self.provider.get_conversation(conversation_id, official_run_id=official_run_id)
 
 
+class FakeRegistry:
+    def get_conversation_adapter(self, platform):
+        return None
+
+
 def test_search_conversations_prefers_official_run_source():
     provider = FakeOfficialConversationProvider()
-    service = ConversationDomainService(FakeGateway(provider))
+    service = ConversationService(FakeGateway(provider), FakeRegistry())
 
     result = service.search_conversations("all", {}, skip=0, limit=20)
 
@@ -90,7 +112,7 @@ def test_search_conversations_prefers_official_run_source():
 
 def test_get_conversation_messages_uses_official_run_id_from_search_index():
     provider = FakeOfficialConversationProvider()
-    service = ConversationDomainService(FakeGateway(provider))
+    service = ConversationService(FakeGateway(provider), FakeRegistry())
 
     result = service.get_conversation_messages("wecom_kf", "conv_run_001", limit=50)
 
@@ -102,7 +124,7 @@ def test_get_conversation_messages_uses_official_run_id_from_search_index():
 
 def test_resolve_business_reference_bridges_wecom_run_to_order_platform():
     provider = FakeOfficialConversationProvider()
-    service = ConversationDomainService(FakeGateway(provider))
+    service = ConversationService(FakeGateway(provider), FakeRegistry())
 
     resolved = service.resolve_business_reference(
         "wecom_kf",
@@ -119,7 +141,7 @@ def test_resolve_business_reference_bridges_wecom_run_to_order_platform():
 
 
 def test_search_conversations_falls_back_to_fixture_wecom_conversations():
-    service = ConversationDomainService(FakeGateway(None))
+    service = ConversationService(FakeGateway(None), FakeRegistry())
 
     result = service.search_conversations("wecom_kf", {}, skip=0, limit=50)
 
@@ -144,7 +166,7 @@ def test_resolve_business_reference_falls_back_to_fixture_conversation_links(
     expected_platform: str,
     expected_order_id: str,
 ):
-    service = ConversationDomainService(FakeGateway(None))
+    service = ConversationService(FakeGateway(None), FakeRegistry())
 
     resolved = service.resolve_business_reference("wecom_kf", conversation_id)
 
@@ -172,7 +194,7 @@ def test_resolve_business_reference_canonicalizes_all_supported_ecommerce_aliase
     expected_order_id: str,
 ):
     provider = FakeOfficialConversationProvider()
-    service = ConversationDomainService(FakeGateway(provider))
+    service = ConversationService(FakeGateway(provider), FakeRegistry())
 
     resolved = service.resolve_business_reference("wecom_kf", biz_id)
 

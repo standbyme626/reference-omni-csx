@@ -23,16 +23,16 @@ _prepend_path(REPO_ROOT)
 _prepend_path(SERVICE_ROOT)
 
 
-def _activate_domain_service_imports() -> None:
+def _activate_service_imports() -> None:
     _purge_app_modules()
     _prepend_path(REPO_ROOT)
     _prepend_path(SERVICE_ROOT)
 
 
 def pytest_collect_file(file_path, parent):
-    _activate_domain_service_imports()
+    _activate_service_imports()
     return None
 
 
 def pytest_runtest_setup(item):
-    _activate_domain_service_imports()
+    _activate_service_imports()

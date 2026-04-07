@@ -4,10 +4,10 @@ from datetime import datetime
 from app.services.business_context_service import BusinessContextService
 from app.adapters.registry import PlatformRegistry
 from app.services.platform_gateway_service import PlatformGatewayService
-from app.services.order_domain_service import OrderDomainService
-from app.services.shipment_domain_service import ShipmentDomainService
-from app.services.after_sale_domain_service import AfterSaleDomainService
-from app.services.conversation_domain_service import ConversationDomainService
+from app.services.order_service import OrderService
+from app.services.shipment_service import ShipmentService
+from app.services.after_sale_service import AfterSaleService
+from app.services.conversation_service import ConversationService
 from providers.odoo.provider import OdooProvider, OdooProviderMode
 
 
@@ -15,10 +15,10 @@ from providers.odoo.provider import OdooProvider, OdooProviderMode
 def business_context_service():
     registry = PlatformRegistry()
     gateway = PlatformGatewayService(registry)
-    order_service = OrderDomainService(gateway, registry)
-    shipment_service = ShipmentDomainService(gateway)
-    after_sale_service = AfterSaleDomainService(gateway)
-    conversation_service = ConversationDomainService(gateway)
+    order_service = OrderService(gateway, registry)
+    shipment_service = ShipmentService(gateway)
+    after_sale_service = AfterSaleService(gateway)
+    conversation_service = ConversationService(gateway, registry)
     odoo_provider = OdooProvider(mode=OdooProviderMode.MOCK)
     
     return BusinessContextService(

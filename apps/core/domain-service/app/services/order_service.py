@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from app.adapters.registry import PlatformRegistry, AdapterRegistry
 from app.services.platform_gateway_service import PlatformGatewayService
-from models.unified import OrderStatus, Platform
+from app.models.unified import OrderStatus, Platform
 
 from providers.utils.fixture_loader import FixtureLoader
 from providers.utils.sim_identity import build_canonical_order_id, get_primary_order_id

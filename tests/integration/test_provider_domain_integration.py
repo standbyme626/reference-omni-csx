@@ -18,7 +18,7 @@ from providers.kuaishou.provider import KuaishouProvider
 from providers.wecom_kf.provider import WecomKfProvider
 from providers.base.provider import ProviderMode
 
-from models.unified import Platform
+from app.models.unified import Platform
 from adapters.platform_adapter import TaobaoAdapter, DouyinShopAdapter
 
 

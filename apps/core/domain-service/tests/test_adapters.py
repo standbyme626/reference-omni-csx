@@ -7,7 +7,7 @@ from adapters.platform_adapter import (
     TaobaoAdapter,
     XhsAdapter,
 )
-from models.unified import OrderStatus, Platform
+from app.models.unified import OrderStatus, Platform
 
 
 class TestTaobaoAdapter:
@@ -46,7 +46,7 @@ class TestTaobaoAdapter:
         assert len(unified.products) == 1
     
     def test_from_unified_order(self):
-        from models.unified import UnifiedAddress, UnifiedOrder, UnifiedProduct
+        from app.models.unified import UnifiedAddress, UnifiedOrder, UnifiedProduct
         
         unified = UnifiedOrder(
             order_id="TB_ORDER_001",

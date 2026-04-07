@@ -3,7 +3,7 @@ from app.adapters.registry import PlatformRegistry, bootstrap_default_registry
 from app.core.config import Environment, settings
 from app.services.official_sim_provider import OfficialSimProxyProvider
 from app.services.platform_gateway_service import PlatformGatewayService
-from models.unified import Platform
+from app.models.unified import Platform
 
 
 class TestRegistryBootstrap:

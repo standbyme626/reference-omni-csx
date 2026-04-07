@@ -1,7 +1,7 @@
 from app.adapters.registry import bootstrap_default_registry
-from app.services.after_sale_domain_service import AfterSaleDomainService
-from app.services.order_domain_service import OrderDomainService
-from app.services.shipment_domain_service import ShipmentDomainService
+from app.services.after_sale_service import AfterSaleService
+from app.services.order_service import OrderService
+from app.services.shipment_service import ShipmentService
 
 from providers.utils.sim_identity import get_primary_order_id, iter_order_id_aliases
 
@@ -58,7 +58,7 @@ class FakeGateway:
 
 
 def test_order_service_attaches_requested_external_and_canonical_ids():
-    service = OrderDomainService(FakeGateway(), bootstrap_default_registry())
+    service = OrderService(FakeGateway(), bootstrap_default_registry())
 
     order = service.get_order("taobao", "TB_ORDER_003")
 
@@ -69,7 +69,7 @@ def test_order_service_attaches_requested_external_and_canonical_ids():
 
 
 def test_shipment_service_attaches_requested_external_and_canonical_ids():
-    service = ShipmentDomainService(FakeGateway())
+    service = ShipmentService(FakeGateway())
 
     shipment = service.get_shipment("taobao", "TB_ORDER_003")
 
@@ -81,7 +81,7 @@ def test_shipment_service_attaches_requested_external_and_canonical_ids():
 
 
 def test_after_sale_service_attaches_canonical_order_identity():
-    service = AfterSaleDomainService(FakeGateway())
+    service = AfterSaleService(FakeGateway())
 
     after_sale = service.get_after_sale_by_order("taobao", "TB_ORDER_003")
 

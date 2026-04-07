@@ -1,5 +1,18 @@
+import socket
+
 import pytest
 from fastapi.testclient import TestClient
+
+
+def _official_sim_available():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect(("localhost", 8001))
+        return True
+    except (ConnectionRefusedError, OSError):
+        return False
+    finally:
+        s.close()
 
 
 @pytest.fixture
@@ -13,30 +26,33 @@ def client():
 class TestHealthEndpoint:
     def test_healthz(self, client: TestClient):
         response = client.get("/healthz")
-        
+
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
         assert response.json()["service"] == "domain-service"
 
 
 class TestOrdersAPI:
+    @pytest.mark.skipif(not _official_sim_available(), reason="official-sim server not running")
     def test_get_order_not_found(self, client: TestClient):
         response = client.get("/api/orders/taobao/NONEXISTENT_ORDER")
-        
+
         assert response.status_code == 404
 
 
 class TestShipmentsAPI:
+    @pytest.mark.skipif(not _official_sim_available(), reason="official-sim server not running")
     def test_get_shipment_not_found(self, client: TestClient):
         response = client.get("/api/shipments/taobao/NONEXISTENT_ORDER")
-        
+
         assert response.status_code == 404
 
 
 class TestAfterSalesAPI:
+    @pytest.mark.skipif(not _official_sim_available(), reason="official-sim server not running")
     def test_get_after_sale_not_found(self, client: TestClient):
         response = client.get("/api/after-sales/taobao/NONEXISTENT_ID")
-        
+
         assert response.status_code == 404
 
 
@@ -50,7 +66,7 @@ class TestContextAPI:
                 "biz_type": "order",
             },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"
@@ -85,7 +101,7 @@ class TestRecommendationsAPI:
                 "biz_type": "order",
             },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"
@@ -100,12 +116,12 @@ class TestQualityAPI:
                 "reply_content": "您好，请问有什么可以帮您的？",
             },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"
         assert "score" in data["data"]
-    
+
     def test_check_reply_short(self, client: TestClient):
         response = client.post(
             "/api/quality/check-reply",
@@ -113,7 +129,7 @@ class TestQualityAPI:
                 "reply_content": "好的",
             },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["score"] < 100
@@ -147,15 +163,15 @@ class TestRiskAPI:
                 },
             },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"
         assert "level" in data["data"]
-    
+
     def test_get_rules(self, client: TestClient):
         response = client.get("/api/risk/rules")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"

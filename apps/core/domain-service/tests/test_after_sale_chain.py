@@ -1,6 +1,6 @@
-from app.services.after_sale_domain_service import AfterSaleDomainService
+from app.services.after_sale_service import AfterSaleService
 from fastapi.testclient import TestClient
-from models.unified import Platform
+from app.models.unified import Platform
 
 
 def _get_app():
@@ -9,10 +9,10 @@ def _get_app():
     return domain_app
 
 
-def _get_after_sale_domain_service_dependency():
-    from app.dependencies import get_after_sale_domain_service
+def _get_after_sale_service_dependency():
+    from app.dependencies import get_after_sale_service
 
-    return get_after_sale_domain_service
+    return get_after_sale_service
 
 
 class FakeGateway:
@@ -50,7 +50,7 @@ class FakeGateway:
 
 def test_get_after_sale_by_order_uses_gateway_order_lookup():
     gateway = FakeGateway()
-    service = AfterSaleDomainService(gateway)
+    service = AfterSaleService(gateway)
 
     result = service.get_after_sale_by_order(
         "taobao",
@@ -97,7 +97,7 @@ def test_after_sale_by_order_route_forwards_official_run_id():
 
     fake_service = FakeService()
     app = _get_app()
-    dependency = _get_after_sale_domain_service_dependency()
+    dependency = _get_after_sale_service_dependency()
     app.dependency_overrides[dependency] = lambda: fake_service
     client = TestClient(app)
 

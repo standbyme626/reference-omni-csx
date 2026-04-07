@@ -2,8 +2,9 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
+from app.adapters.registry import bootstrap_default_registry
 from app.services.business_context_service import BusinessContextService
-from app.services.conversation_domain_service import ConversationDomainService
+from app.services.conversation_service import ConversationService
 from app.services.recommendation_service import RecommendationService
 
 
@@ -209,7 +210,7 @@ def test_build_order_context_bridges_wecom_aliases_to_effective_platform_id(
         order_service=order_service,
         shipment_service=shipment_service,
         after_sale_service=FakeAfterSaleService(),
-        conversation_service=ConversationDomainService(EmptyGateway()),
+        conversation_service=ConversationService(EmptyGateway(), bootstrap_default_registry()),
         odoo_provider=odoo_provider,
     )
 

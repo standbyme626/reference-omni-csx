@@ -1,3 +1,4 @@
+import socket
 from datetime import datetime
 
 import pytest
@@ -9,10 +10,24 @@ from app.services.official_sim_provider import (
     OfficialSimProxyProvider,
 )
 from app.services.platform_gateway_service import PlatformGatewayService
-from models.unified import Platform
+from app.models.unified import Platform
 
 from providers.odoo.mock.provider import OrderAuditSnapshot
 from providers.odoo.provider import OdooProvider, OdooProviderMode
+
+
+def _official_sim_available():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect(("localhost", 8001))
+        return True
+    except (ConnectionRefusedError, OSError):
+        return False
+    finally:
+        s.close()
+
+
+pytestmark = pytest.mark.skipif(not _official_sim_available(), reason="official-sim server not running")
 
 
 def test_gateway_forwards_official_run_id_to_official_sim_provider(monkeypatch):

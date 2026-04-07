@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 from app.adapters.registry import AdapterRegistry
 from app.core.config import Environment, settings
 from app.services.official_sim_provider import OfficialSimProxyProvider
-from models.unified import Platform
+from app.models.unified import Platform
 
 from providers.base.provider import ProviderMode
 from providers.douyin_shop.provider import DouyinShopProvider

@@ -7,7 +7,7 @@ DOMAIN_SERVICE_ROOT = Path(__file__).resolve().parents[1]
 if str(DOMAIN_SERVICE_ROOT) not in sys.path:
     sys.path.append(str(DOMAIN_SERVICE_ROOT))
 
-from models.unified import (
+from app.models.unified import (
     UnifiedOrder,
     UnifiedAddress,
     UnifiedProduct,

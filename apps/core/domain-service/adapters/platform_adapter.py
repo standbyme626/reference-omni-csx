@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict
 
-from models.unified import (
+from app.models.unified import (
     OrderStatus,
     Platform,
     UnifiedAddress,
@@ -223,7 +223,7 @@ class DouyinShopAdapter:
 class WecomKfAdapter:
     @staticmethod
     def to_unified_conversation(platform_data: Dict[str, Any]) -> Dict[str, Any]:
-        from models.unified import ConversationStatus, Platform, UnifiedConversation
+        from app.models.unified import ConversationStatus, Platform, UnifiedConversation
 
         return UnifiedConversation(
             conversation_id=platform_data.get("conversation_id", ""),

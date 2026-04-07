@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from models.unified import Platform
+from app.models.unified import Platform
 
 from .protocols import (
     AfterSaleAdapter,
@@ -108,7 +108,7 @@ class AdapterRegistry:
 
         if order is None and shipment is None and after_sale is None and conversation is None:
             return None
-        return _LegacyAdapter(order, shipment, after_sale, conversation)
+        return _LegacyAdapter(platform, order, shipment, after_sale, conversation)
 
     def get_capabilities(self, platform: Platform) -> "_LegacyCapabilities":
         """Return a capabilities object compatible with old callers."""
@@ -142,15 +142,21 @@ class _LegacyAdapter:
 
     def __init__(
         self,
+        platform: Platform,
         order: OrderAdapter | None,
         shipment: ShipmentAdapter | None,
         after_sale: AfterSaleAdapter | None,
         conversation: ConversationAdapter | None,
     ) -> None:
+        self._platform = platform
         self._order = order
         self._shipment = shipment
         self._after_sale = after_sale
         self._conversation = conversation
+
+    @property
+    def platform(self) -> Platform:
+        return self._platform
 
     def to_unified_order(self, platform_data: dict) -> dict:
         if self._order is None:
